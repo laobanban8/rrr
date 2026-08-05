@@ -6931,10 +6931,18 @@ print("[SkillMenu] 已启动：Skills / Innates 双栏位切换")
 
 --------------------------------------------------
 -- HIDDEN AUTO EXECUTE INSTALLER
--- 从剪贴板保存“当前完整主脚本”至 Autoexec。
--- 使用方法：复制完整脚本后直接执行；脚本会自动保存自身。
+-- 正常启动主脚本时自动更新 Autoexec Loader。
+-- 不自动传送，不需要单独运行修复脚本。
 --------------------------------------------------
-local AUTO_EXECUTE_FILE = "autoexec/JJI_SkillMenu_AutoExecute.lua"
+local AUTO_EXECUTE_VERSION = "JJI-AUTOEXEC-20260806-4"
+
+-- 必须改为“已经上传了本次修改后完整主脚本”的地址。
+-- 不能继续使用旧版本文件地址，否则 Autoexec 必然继续下载旧版。
+local AUTO_EXECUTE_URL =
+    "https://raw.githubusercontent.com/laobanban8/rrr/refs/heads/main/rrrf"
+
+local AUTO_EXECUTE_FILE =
+    "autoexec/JJI_SkillMenu_AutoExecute.lua"
 
 local OLD_AUTO_EXECUTE_FILES = {
     "Autoexec/JJI_SkillMenu_AutoExecute.lua",
@@ -6962,30 +6970,146 @@ local function getQueueOnTeleport()
     return nil
 end
 
-local function getFullScriptFromClipboard()
-    local clipboardFunctions = {
-        getclipboard,
-        get_clipboard,
-        readclipboard,
-        clipboard_get
+local function luaQuote(value)
+    return string.format("%q", tostring(value))
+end
+
+-- 不使用嵌套 string.format。
+-- 因此内部 Lua 的 %、模式匹配和格式化字符串不会导致
+-- “missing argument #6” 一类错误。
+local AUTO_EXECUTE_LOADER_TEMPLATE = [=[
+repeat task.wait(0.25) until game:IsLoaded()
+
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+
+repeat task.wait(0.25) until Players.LocalPlayer
+
+local VERSION = __VERSION__
+local SOURCE_URL = __SOURCE_URL__
+local FLAG_FILE = __FLAG_FILE__
+local AUTOEXEC_FILE = __AUTOEXEC_FILE__
+
+if type(isfile) == "function"
+    and type(readfile) == "function"
+    and isfile(FLAG_FILE)
+then
+    local ok, saved = pcall(function()
+        return HttpService:JSONDecode(readfile(FLAG_FILE))
+    end)
+
+    if ok
+        and type(saved) == "table"
+        and saved.enabled == false
+    then
+        return
+    end
+end
+
+local environment = getgenv and getgenv() or _G
+
+-- Loader 本身也只允许运行一份。
+if environment.JJI_SKILL_MENU_LOADER_VERSION == VERSION then
+    return
+end
+
+environment.JJI_SKILL_MENU_LOADER_VERSION = VERSION
+
+local queueFunction =
+    type(queue_on_teleport) == "function" and queue_on_teleport
+    or type(queueonteleport) == "function" and queueonteleport
+    or syn and type(syn.queue_on_teleport) == "function" and syn.queue_on_teleport
+    or fluxus and type(fluxus.queue_on_teleport) == "function" and fluxus.queue_on_teleport
+    or nil
+
+-- 传送后继续排队当前唯一 Loader。
+if queueFunction
+    and type(readfile) == "function"
+    and type(isfile) == "function"
+    and isfile(AUTOEXEC_FILE)
+then
+    pcall(function()
+        queueFunction(readfile(AUTOEXEC_FILE))
+    end)
+end
+
+local separator = string.find(SOURCE_URL, "?", 1, true)
+    and "&"
+    or "?"
+
+local requestUrl =
+    SOURCE_URL
+    .. separator
+    .. "_jji_version="
+    .. HttpService:UrlEncode(VERSION)
+    .. "&_jji_time="
+    .. tostring(os.time())
+
+local downloaded, source = pcall(function()
+    return game:HttpGet(requestUrl)
+end)
+
+if not downloaded
+    or type(source) ~= "string"
+    or #source < 1000
+then
+    environment.JJI_SKILL_MENU_LOADER_VERSION = nil
+    warn("[JJI AutoExecute] 下载主脚本失败:", source)
+    return
+end
+
+-- 主脚本末尾包含安装器时，只执行安装器前面的业务代码。
+-- 防止下载后的脚本再次套娃安装旧 Loader。
+local installerStart = source:find(
+    "HIDDEN AUTO EXECUTE INSTALLER",
+    1,
+    true
+)
+
+if installerStart then
+    local commentStart = source:sub(
+        1,
+        installerStart
+    ):match(".*()%-%-")
+
+    if commentStart then
+        source = source:sub(1, commentStart - 1)
+    end
+end
+
+local compiled, compileError = loadstring(source)
+
+if not compiled then
+    environment.JJI_SKILL_MENU_LOADER_VERSION = nil
+    warn("[JJI AutoExecute] 主脚本编译失败:", compileError)
+    return
+end
+
+local ran, runError = pcall(compiled)
+
+if not ran then
+    environment.JJI_SKILL_MENU_LOADER_VERSION = nil
+    warn("[JJI AutoExecute] 主脚本执行失败:", runError)
+end
+]=]
+
+local function buildAutoExecuteLoader()
+    local replacements = {
+        ["__VERSION__"] = luaQuote(AUTO_EXECUTE_VERSION),
+        ["__SOURCE_URL__"] = luaQuote(AUTO_EXECUTE_URL),
+        ["__FLAG_FILE__"] = luaQuote(AUTO_EXECUTE_FLAG_FILE),
+        ["__AUTOEXEC_FILE__"] = luaQuote(AUTO_EXECUTE_FILE)
     }
 
-    for _, getClipboard in ipairs(clipboardFunctions) do
-        if type(getClipboard) == "function" then
-            local ok, source = pcall(getClipboard)
+    local loader = AUTO_EXECUTE_LOADER_TEMPLATE
 
-            if ok
-                and type(source) == "string"
-                and #source > 10000
-                and source:find("Enhanced Skill Menu UI", 1, true)
-                and source:find("HIDDEN AUTO EXECUTE INSTALLER", 1, true)
-            then
-                return source
-            end
-        end
+    for token, replacement in pairs(replacements) do
+        loader = loader:gsub(token, function()
+            return replacement
+        end)
     end
 
-    return nil
+    return loader
 end
 
 local function removeOldAutoExecuteFiles()
@@ -6997,38 +7121,24 @@ local function removeOldAutoExecuteFiles()
 
     for _, path in ipairs(OLD_AUTO_EXECUTE_FILES) do
         if isfile(path) then
-            local ok, err = pcall(function()
+            local removed, removeError = pcall(function()
                 delfile(path)
             end)
 
-            if not ok then
+            if not removed then
                 warn(
                     "[JJI AutoExecute] 删除旧副本失败:",
                     path,
-                    err
+                    removeError
                 )
             end
         end
     end
 end
 
-installAutoExecute = function()
-    if not autoExecuteEnabled then
-        return true
-    end
-
+local function writeCurrentAutoExecuteLoader(loader)
     if type(writefile) ~= "function" then
         warn("[JJI AutoExecute] 当前执行器不支持 writefile")
-        return false
-    end
-
-    local fullSource = getFullScriptFromClipboard()
-
-    if not fullSource then
-        warn(
-            "[JJI AutoExecute] 未从剪贴板找到完整主脚本，"
-            .. "请先复制完整脚本再执行。"
-        )
         return false
     end
 
@@ -7042,30 +7152,49 @@ installAutoExecute = function()
         end)
     end
 
-    local saved, saveError = pcall(function()
-        writefile(AUTO_EXECUTE_FILE, fullSource)
+    local written, writeError = pcall(function()
+        writefile(AUTO_EXECUTE_FILE, loader)
     end)
 
-    if not saved then
-        warn("[JJI AutoExecute] 保存完整脚本失败:", saveError)
+    if not written then
+        warn("[JJI AutoExecute] 写入 Loader 失败:", writeError)
         return false
     end
 
-    -- 标准文件保存成功后，再清理其他历史目录的旧副本。
+    return true
+end
+
+installAutoExecute = function()
+    -- URL 未设置时不生成无效 Autoexec 文件。
+    if AUTO_EXECUTE_URL == ""
+        or AUTO_EXECUTE_URL == "在这里填写你更新后的完整主脚本 URL"
+    then
+        warn("[JJI AutoExecute] 请先设置 AUTO_EXECUTE_URL")
+        return false
+    end
+
+    local loader = buildAutoExecuteLoader()
+
+    -- 先写标准路径，再删除其他历史路径。
+    -- 即使删除失败，标准 Loader 也已经是当前版本。
+    if not writeCurrentAutoExecuteLoader(loader) then
+        return false
+    end
+
     removeOldAutoExecuteFiles()
+
+    -- Autoexecute 开关关闭时保留文件，但 Loader 下次启动会立即退出。
+    if not autoExecuteEnabled then
+        return true
+    end
 
     local queueFunction = getQueueOnTeleport()
 
     if queueFunction then
         pcall(function()
-            queueFunction(fullSource)
+            queueFunction(loader)
         end)
     end
-
-    print(
-        "[JJI AutoExecute] 已保存完整主脚本:",
-        AUTO_EXECUTE_FILE
-    )
 
     return true
 end
