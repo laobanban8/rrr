@@ -2588,23 +2588,105 @@ function parseWeaponNamesFromSource(src)
     return arr
 end
 
+local manualWeaponTools = {}
+
 function giveWeaponToBackpack(weaponName)
     if type(weaponName) ~= "string" or weaponName == "" then
         return false
     end
 
     local lp = Players.LocalPlayer
-    if not lp then return false end
+    if not lp then
+        return false
+    end
 
-    local backpack = lp:FindFirstChild("Backpack") or lp:WaitForChild("Backpack", 3)
-    if not backpack then return false end
+    local backpack = lp:FindFirstChild("Backpack")
+        or lp:WaitForChild("Backpack", 3)
+
+    if not backpack then
+        return false
+    end
 
     local tool = Instance.new("Tool")
     tool.Name = weaponName
     tool.RequiresHandle = false
     tool.CanBeDropped = true
     tool.Parent = backpack
-    return true
+
+    -- 第一个返回值继续兼容现有自动添加逻辑；
+    -- 第二个返回值供手动切换逻辑记录 Tool。
+    return true, tool
+end
+
+function toggleManualWeapon(weaponName)
+    if type(weaponName) ~= "string" or weaponName == "" then
+        return false, "invalid_name"
+    end
+
+    --------------------------------------------------
+    -- 已由左键添加且仍然存在：再次点击时删除
+    --------------------------------------------------
+    local existingTool = manualWeaponTools[weaponName]
+
+    if existingTool and existingTool.Parent then
+        existingTool:Destroy()
+        manualWeaponTools[weaponName] = nil
+        return true, "removed"
+    end
+
+    manualWeaponTools[weaponName] = nil
+
+    --------------------------------------------------
+    -- 恢复可能因 UI 重建而丢失的引用
+    --------------------------------------------------
+    local lp = Players.LocalPlayer
+    if not lp then
+        return false, "missing_player"
+    end
+
+    local containers = {
+        lp:FindFirstChild("Backpack"),
+        lp.Character
+    }
+
+    local objects = workspace:FindFirstChild("Objects")
+    local characters = objects
+        and objects:FindFirstChild("Characters")
+    local customCharacter = characters
+        and characters:FindFirstChild(lp.Name)
+
+    if customCharacter then
+        table.insert(containers, customCharacter)
+    end
+
+    for _, container in ipairs(containers) do
+        if container then
+            for _, child in ipairs(container:GetChildren()) do
+                if child:IsA("Tool")
+                    and child:GetAttribute("JJI_ManualWeapon") == true
+                    and child:GetAttribute("JJI_ManualWeaponName") == weaponName
+                then
+                    child:Destroy()
+                    return true, "removed"
+                end
+            end
+        end
+    end
+
+    --------------------------------------------------
+    -- 不存在：添加到背包并标记为手动添加
+    --------------------------------------------------
+    local added, tool = giveWeaponToBackpack(weaponName)
+
+    if not added or not tool then
+        return false, "add_failed"
+    end
+
+    tool:SetAttribute("JJI_ManualWeapon", true)
+    tool:SetAttribute("JJI_ManualWeaponName", weaponName)
+    manualWeaponTools[weaponName] = tool
+
+    return true, "added"
 end
 
 function giveItemToInventory(itemName)
