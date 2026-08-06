@@ -389,6 +389,10 @@ local autoOptions = {
 }
 
 local renameModeEnabled = false
+local hideHotkeyEnabled = true
+local hideHotkeyName = "RightControl"
+local hideHotkeyCaptureBox = nil
+local mainUIHidden = false
 local nextCustomInnateId = 5 -- 专用于无限Innate的计数器，从5开始 -- 武器改名模式开关
 
 local uiRefs = nil
@@ -867,6 +871,468 @@ local FORCE_KICKABLE_SKILLS = {
     ["Todo: Safe Circle"] = true,
     ["Todo: Swap Step"] = true,
 }
+
+--------------------------------------------------
+-- SKILL RATINGS
+-- 数据顺序：伤害 | 范围 | 隐蔽性 | 加成 | 控制 | 移动
+-- 冷却不写在数据中，由技能 Cooldown 自动计算并插入第 5 项。
+--------------------------------------------------
+local SKILL_RATINGS = {}
+
+local SKILL_RATING_SOURCE = [==[
+Absolute Zero|B+|S|B|F-|B|A
+Acid Spit|C|B+|A|F-|A|F-
+Ambush|A|A|A|F-|B|A
+Ancient Construction: Insect Armor|F-|F-|B|A|F-|SS
+Ancient Construction: Metal Barrage|D-|C-|SSS|F-|C|F-
+Ancient Construction: Metal Dash|A|S|B|F-|A|S
+Ancient Construction: Metal Rain|C|B-|S|F-|A|F-
+Ancient Construction: Metal Spikes|A-|A|A|F-|B+|F-
+Axe Smash|B(S-)|D-(D-)|S(A+)|F-(F-)|A+(A+)|F(F)
+Bat Blink|F-|F-|S|F-|F-|SSS+
+Binding Vow: Arm Sacrifice|F-|F-|SSS|A|F-|F-
+Black Flash Arms V2: Scattering Sparks|SS|S|D-|F-|SS|F-
+Black Flash Arms V2: Unyielding Advance|A-|A-|C+|F-|SS+|A
+Blade Spin|C+|B-|S|F-|A|F-
+Blazing Courage: Blazing Slash|B+|B+|B+|F-|A-|F-
+Blazing Courage: Fire Tornado|D+|B-|S-|F-|A+|F-
+Blazing Courage: Heart Of Fire|B+(B+)|B+(B+)|B+(B+)|B(B)|F(F)|A(A)
+Blink & Red|SSS+|A|B|F-|B-|A+
+Blitz|A-|A|A|F-|A|A
+Blood Manipulation: Blood Bind|B-|A|A|F-|A+|F-
+Blood Manipulation: Blood Disk|B-|A|A|F-|F-|F-
+Blood Manipulation: Flowing Red Scale|F-|F-|B|S+|F-|F-
+Blood Manipulation: Piercing Blood|B|A|A|F-|B|F-
+Blood Manipulation: Supernove|Changing(Changing+)|SSS+(SSS+)|SSS(SSS)|F-(F-)|B(B)|F-(F-)
+Blood Pact|B|A|C+|F-|S+|F-
+Bloodletting Coil|B-|A|B|F-|S|A
+Bloodlust|F-|F-|B|S|F-|F-
+Blue Whirlwind|SS+|S|D|F-|S|S+
+Boogie Woogie: Counter Suplex|A|Changing|C|F-|S|F-
+Boogie Woogie: Evasive Swap|B-|A|B+|F-|A|S
+Boogie Woogie: Mark|F-|F-|SSS+|F-|F-|Mark
+Boogie Woogie: Pebble Swap|B-|A|B+|F-|A|SS+
+Boogie Woogie: Percussive Missile|A|A|B|F-|B|B
+Boogie Woogie: Swap|F-|F-|S|F-|F-|Changing(Mark)
+Brain Heal|F-|F-|S|A|F-|F-
+Burn Scars V2: Destroy Everything|F-|F-|B|SS-|F-|B+
+Burn Scars V2: Scarred Return|S|Changing|D|F-|S+|F-
+Calamity|B-|B|B|F-|B|F
+Cannonball|B+|A+|B|A|A|S
+Chain Grab|B-|Changing|A|F-|SS|F-
+Chained Dropkick|B+|D-|A|F-|A|F-
+Claw and Talon|B+|A|B+|F-|SS|F-
+Cleaving Barrage|Changing(A- to SSS+)|SS+|F|F-|A|F-
+Clone Mirage|Changing|Changing|Changing|F-|Changing|SSS
+Cloning Technique: Clone Swap|F-|F-|SSS|F-|F-|Changing
+Cloning Technique: Clone Toss|A|D-|A|F-|S|F-
+Cloning Technique: Form Clones|Changing|Changing|Changing|F-|Changing|F-
+Construction: Cleaver Crash|A-|A-|B+|F-|A|A
+Construction: Minigun Barrage|B|A|A|F-|A|F-
+Construction: Pistol|B|A|A+|F-|B|F-
+Crow Strike|B+|A+|B|F-|B|F
+Cryokinesis: Frost Impact|B|B+|B|F-|A|B+
+Cryokinesis: Hail Storm|Changing(D+ to B+)|A+|B|F-|A|F
+Cryokinesis: Ice Age|A-(S-)|S+(S+)|C(C)|F-(F-)|A(A)|F-(F-)
+Cryokinesis: Sub-Zero Gliding|F-|F-|C-|F-|F-|SS
+Cryokinesis: Winter Lotus|B-(B)|B-(A-)|B+(B)|F-(F-)|A(A)|F-(F-)
+Curse Queen: Conjuration|Changing|B|B-|SS|A|F-
+Curse Queen: Copy|Changing|S+|B|F-|B|F-
+Curse Queen: Demonic Toss|B|C|B-|F-|A|F-
+Curse Queen: Energy Blast|B+(A-)|A+(A+)|C+(C+)|F-(F-)|B(B)|F-(F-)
+Curse Queen: Ghastly Fist|Changing(B- to SSS-)|B|B|F-|A|F-
+Curse Queen: Neck Twister|B-|B-|B+|F-|B-|F-
+Curse Tendril|B-|Changing|A|F-|SS|F-
+Demonic Tendril|B-|Changing|A|F-|SS|F-
+Infinite Tendril|B-|Changing|A|F-|SS|F-
+Cursed Reinforcement|F-|F-|C|A+|F-|F-
+Cursed Speech: Blast Away|B+|D+|S|F-|A|F-
+Cursed Speech: Crush|A-|D+|S|F-|A+|F-
+Cursed Speech: Don't Move|B-|Changing|S|F-|A|F-
+Cursed Speech: Explode|B-|D+|S|F-|A+|F-
+Cursed Speech: Megaphone|F-|F-|A|S+|F-|F-
+Cursed Speech: Twist|B-|D+|S|F-|A+|F-
+Dagger Throw|B|C|SS|F-|B|F-
+Death Sentence|Unknown|Unknown|SSS+|Unknown|Unknown|Unknown
+Demon Chop|B-|B+|B+|F-|B+|F
+Demon Slashes|B-|B+|B|F-|A|B
+Demon Vessel: Cleave|B+|A|A|F-|B+|F
+Dismantle|B|B|A|F-|A|F-
+Demon Vessel: Flame Arrow|B|B|B|F-|B-|F-
+Demon Vessel: Rend|B|S|C|F-|A|F-
+Demon Vessel: Spiderweb|B+|A|D+|F-|A+|F-
+Demon Vessel: Switch|F-|F-|B|S+|F-|F-
+Demonic Hellstomp|A|S+|F+|F-|S|F-
+Devastation|A-|D+|A+|F-|A+|F-
+Dimensional Fury|Changing(D- to B)|A|C|F-|A|F-
+Disarming Whirlwind|Unknown|Unknown|SSS+|Unknown|Unknown|Unknown
+Dismantling Dash|S|S|D-|F-|A|F
+Distorted Vent|-SSS- (对自己造成伤害)|Unknown|C|F-|F-|B
+Divergent Fist|F-|F-|A|S|F-|F-
+Divergent Fist: Second Impact|B|D+|B+|F-|B|F-
+Drop Shard|F-|F-|F-|F-|F-|F-
+Eagle Drop|C(B)|B(B)|S(S)|F-(F-)|A(A)|A(A)
+Earthbending: Boulder Barrage|Unknown|Unknown|SSS+|Unknown|Unknown|Unknown
+Earthbending: Earth Surge|Unknown|Unknown|SSS+|Unknown|Unknown|Unknown
+Earthbending: Mudslide|Unknown|Unknown|SSS+|Unknown|Unknown|Unknown
+Electric Bolt|B|Changing|C|F-|A|F-
+Electric Palm|A|D|A|F-|B|F-
+Electric Sweep|B-|D+|A|F-|B|F-
+Energy Balls|Changing(B- to SSS)|A+|C-|F-|B+|F-
+Energy Dispell|B|C-|C+|F-|B|F-
+Energy Halo V2: Energy Shield|F-|F-|F|S|F-|F-
+Energy Halo V2: Thousand Years|SS|S+|F+|F-|A|F-
+Energy Horns V2: Focus Bomb|SS|SSS-|F|F-|B|F-
+EverFreeze|B|C-|A|F-|B|F-
+Exorcist Lunge|Unknown|Unknown|Unknown|Unknown|Unknown|Unknown
+Face Grab|B+|D-|A-|F-|A-|F
+Flaming Aspects|B|C|B+|F-|B|F-
+Flesh Arms V2: Super Jump|A-|B+|C|F-|A-|C
+Flock of Many|Unknown|Unknown|A|Unknown|Unknown|B
+Flourish Strike|A|D-|B|F-|A|F-
+Fractured Beatdown|B+(A)|D+(D+)|A(A)|F-(F-)|A(A)|B(B)
+Freezing Bell|B+|B-|B|F-|A|F-
+Frostforged Technique: Create Snowman|Changing(Changing++)|Changing(Changing++)|Changing(Changing-)|F-(F-)|Changing(Changing++)|Changing(Changing++)
+Frostforged Technique: Healing Frost|F-|F-|C|S|F-|F-
+Frostforged Technique: Summon Sleigh|F-|F-|F|F-|F-|SS+
+Gambler Fever: Cargo Haul|Changing|A-|B|F-|B-|F-
+Gambler Fever: Closing Curtains|Changing(Changing+)|C(C)|A(A)|F-(F-)|B(B)|F-(F-)
+Gambler Fever: Pachinko Rush|Changing|S|B|F-|B-|F-
+Gambler Fever: Rendezvous|B+(A)|A(A)|C-(C-)|F-(F-)|A(A)|F-(F-)
+Gambler Fever: Slot Slam|Changing|B-|B|F-|B-|F-
+Golden Wind|B-|S+|F|F-|B+|F-
+Grab Katana|F-|F-|SSS|F-|F-|F-
+Hail Bullets|B|C-|A|F-|A|F-
+Healing Burst|F-|F-|SSS+|F-|F-|F-
+Hollow Slash|A|SS-|D-|F-|B-|F-
+Hollow Wicker Basket|F-|F-|S|S|F-|F-
+Hydrokinesis: Death Swarm|A(S-)|Changing|D|F-|S+|F-
+Hydrokinesis: Eel Bind|B-|D|C|F-|A|F-
+Hydrokinesis: Piranha Swarm|A-|Changing|C+|F-|S|F-
+Hydrokinesis: Tsunami|B+|A-|C|F-|A+|F-
+Hydrokinesis: Water Jet|A-|C|A-|F-|B|F-
+Impromptu Vow: Reveal One's Hand|Unknown|Unknown|S|Unknown|Unknown|Unknown
+Infinity: Hollow Purple|SSS-|S|D-|F-|B+|F-
+Infinity: Lapse Blue|B|A-|C+|F-|A|F-
+Infinity: Reversal Red|A-|A|C-|F-|B|F-
+Infinity: Spatial Pummel|B|A-|C|F-|A|F-
+Infinity: Mugen|F-|F-|SS-|SS|F-|F-
+Infinity: Red Transmission|B-|Changing|C+|F-|B-|Changing
+Instant Void|F-|F-|A|F-|SSS+|F-
+Iron Wall|Unknown|Unknown|S|Unknown|Unknown|Unknown
+Joyful Ringing|Unknown|Unknown|F|Unknown|Unknown|B
+Judgeman: Confiscation|Changing(Changing+)|Changing(Changing+)|B|Changing(Changing+)|Changing(Changing+)|Changing(Changing+)
+Judgeman: Gavel Smash|B+(A+)|C-|C|F-|B|F-
+Judgeman: Gavel Sweep|B-|B|C+|F-|B+|F-
+Judgeman: Guillotine Execution|B|A-|D|F-|A-|F-
+Judgeman: Objection|S-|Changing|C-|F-|A|F-
+Judgeman: Soaring Justice|B|S+|D-|F-|A+|F-
+Judgement|Unknown|Unknown|S|Unknown|Unknown|Unknown
+Judo Throw|B-|Changing|B|F-|B|F-
+Jutsushi Goroshi|S|Changing|B-|F-|A|F-
+Kokusen|A|S-|D-|F-|A|F-
+Lapse Pull|C-|B|C|F-|S+|F-
+Lapsing Domination|SS+|S|F|F-|A|B
+Lapsing Pull|C-|B|C|F-|S+|F-
+Le Sangre De Sancho|C+|D-|S|F-|B|F-
+Lightning Blast|B-|D+|A|F-|A|F-
+Lunar Strikes|A-|B|B-|F-|B|F-
+Lunge|B|D|A+|F-|B-|F-
+Manic Barrage|B|D|A+|F-|A|F-
+Mantis Kick|Changing(D- to A-)|S+|F|F-|B|F
+Mech Slap 0|B|A|D|F-|B-|F-
+Mech Slap 1|B|A|D|F-|B-|F-
+One-Two|B-|D-|S|F-|B-|F-
+Overwhelming Cursed Energy|B|B-|D|F-|S|F-
+Pavement Slam|B|B|A|F-|B+|F
+Piercing Plumage|B(S-)|D|B+|F-|B+|F-
+Pigeon Viola Overdrive|Unknown|Unknown|S|Unknown|Unknown|Unknown
+Plant Manipulation: Blooming Thorns|B|B|C|F-|A|F-
+Plant Manipulation: Branch Strike|B-|B-|B-|F-|A+|F-
+Plant Manipulation: Field of Tranquility|F|A+|C|F-|A+|F-
+Plant Manipulation: Hex Seeds|F+|B+|A|F-|A|F-
+Plant Manipulation: Nature's Embrace|B|A+|D+|F-|B+|F-
+Plasma Core Boost|Unknown|Unknown|S|Unknown|Unknown|Unknown
+Playful Strike|A-|D+|B|F-|A|F-
+Projection: Frame Barrage|B+|D+|C+|F-|A|F-
+Projection: Frame Counter|F-|F-|A|F-|F-|Changing
+Projection: Frame Flicker|F-|F-|A|F-|F-|SS
+Projection: Frame Rewind|B|A|C|F-|B|F-
+Projection: Framebreak Combo|A|D+|B-|F-|A+|F-
+Projection: Framestack Punch|B-|A-|B-|F-|B-|F-
+Projection: Keyframe Kick|B|A|B-|F-|B-|F-
+Pumpkin Fright|A-|A-|B-|F-|B-|F-
+Puppet: Aerial Reinforcements|F-|F-|B|S|F-|F-
+Puppet: Cursed Shock|A-|A|B-|F-|A-|F-
+Puppet: Mecha Rush|B|A-|B|F-|A-|B
+Puppet: Plasma Core Overdrive|A-|B+|B|F-|B+|F-
+Puppet: Shock Blade|B|Changing|B|F-|B+|F-
+Puppet: Turrets|B|Changing|C+|F-|B+|F-
+Quilled Javelin|B|A|A|F-|B+|F-
+World Cutting Slash|SSS-|SS|F|F-|A+|F-
+Wilting Snow|B+|C+|B+|F-|B+|F-
+Warping Calamity|B+|B+|C+|F-|B-|F-
+Warping Ambush|B|C|A|F-|B+|F-
+Volcano: Molten Palm|A-(A+)|B-|C|F-|B+|F-
+Volcano: Molten Chamber|Changing(B- to SSS+)|A|C-|F-|A-|F-
+Volcano: Fissure|Changing(C+ to B+)|A|C|F-|B+|F-
+Volcano: Eruption|Changing|S-|D|F-|B|F-
+Volcano: Ember Insects|B+|Changing|B|F-|B-|F-
+Visceral Frenzy|A-|D|A|F-|B+|F-
+Veil|F-|F-|F-|F-|SS|F-
+Uplift|B-(A-)|D-|A|F-|A+|F-
+Unstable Souls|B+|A|C-|F-|A-|F-
+Unforgiving Snow|B-|D+|A-|F-|B+|F-
+Ultimate: Hollow Nuke|Wait For Test|Wait For Test|Wait For Test|Wait For Test|Wait For Test|Wait For Test
+Ultimate: Flame Arrow|Wait For Test|Wait For Test|Wait For Test|Wait For Test|Wait For Test|Wait For Test
+Ultimate Cannon|Unknown|Unknown|SS+|Unknown|Unknown|Unknown
+Triple Kick|B-(B+)|D-|S+(A+)|F-|B+|F-
+Tremor Strike|B(A)|B|B(C+)|F-|B+|F-
+Tool Manipulation: Wind Scythe|B|A-|B+|F-|A-|F-
+Tool Manipulation: Knife Frenzy|B|B-|A|F-|B|F-
+Tool Manipulation: Broom|F-|F-|B-|F-|F-|SS+
+Toggle Shield|F-|F-|C-|F-|F-|F-
+Thundering Claps|Unknown|Unknown|SSS+|Unknown|Unknown|Unknown
+Thunder God: Turn Up The Volume|B-|B|C+|F-|B+|F-
+Thunder God: Sonic Speed|B|A-|D|F-|B-|B+
+Thunder God: Lightning Reflex|B-|A-|D+|F-|B|F-
+Thunder God: Energized Sprint|Changing(B to B+)|Changing(C to S-)|Changing(B to C-)|F-|B|B
+Thunder God: Dispel|B|B+|B-|F-|B|F-
+Thunder God Dash|Unknown|Unknown|Unknown|Unknown|Unknown|Unknown(or SSS+)
+Thunder Burst|B-|B|C+|F-|B+|F-
+Thrust|Changing|A|A|F-|B-|F-
+Throat Gouge|A+|D-|S or B+|F-|A-|F-
+Test Domain Unlimited|Changing|Infinite|F-|F-|SSS+?|F-
+Test Domain Malevolent|SSS++++|Infinite|F-|F-|B+|F-
+Targeting System Focus|Unknown|Unknown|SSS+|Unknown|Unknown|Unknown
+Talon Strike|C+(B)|Changing(D- to C)|A(B)|F-|B+|B
+Tackle|B-|Changing(D- to B)|A-|F-|B+|A
+Switch Weapons|Unknown|Unknown|SSS+|Unknown|Unknown|Unknown
+Sweeping Maim|B-|D-|S|F-|A-|F-
+Super Senses|F-|F-|B|S+|F-|F-
+Straw Doll: Squeaky Strike|C+|D-|A|F-|A|F-
+Ratio Technique: 7:3 Strike|B(A-)|D|B+(B)|F-|B+|F-
+Ratio Technique: Collapse|Changing(B to B+)|B+|B-|F-|B+|F-
+Ratio Technique: Overtime|F-|F-|C|S+|F-|F-
+Ratio Technique: Unwavering Output|B+|D-|B|F-|B+|F-
+Ravenous Flock|B-|A+|C|F-|B|F-
+Razing Rend|S|S+|D-|F-|A-|F-
+Red Flare|S|A-|C-|F-|B+|F-
+Red Reflect|A-|A|C|F-|B|F-
+Red Reflection|A-|A|C|F-|B|F-
+Remote Blue|B-|B|C+|F-|A-|Changing
+Remote Blue Activate|B-|B|C+|F-|A-|Changing
+Rending Sawblade|Changing(F+ to D+)|B-|A-|F-|A-|F-
+Reversal Wave|B+|A|C-|F-|B+|A-
+Reverse Wave|B+|A|C-|F-|B+|A-
+Rift of Annihilation|Unknown|Unknown|SSS+|Unknown|Unknown|Unknown
+Rift Onslaught|B+|B-|B-|F-|A-|F-
+Rippling Dash|SS+|A+|D|F-|B|F-
+Rising Kick|B-(A-)|D-|A(B)|F-|B+|F-
+Rising Snow|A+(SS-)|D|B-|F-|A|F-
+Sever|B|D-|A|F-|B-|F-
+Shadow Barrage|Changing(F+ to C+)|C-|C+|F-|B-|F-
+Shadow Strike|B(S-)|A-|D-|F-|B|F-
+Shoulder Throw|B-|D-|S|F-|B|F-
+Shrapnel Barrage|Changing(D to B)|C|B+|F-|A-|F-
+Simple Domain|F-|F-|B|S+|F-|F-
+Slide Slice|Changing(D- to A-)|D|A|F-|B-|A
+Straw Doll: Resonance|Unknown|Unknown|S|Unknown|Unknown|Unknown
+Straw Doll: Prybar|B-|D|A|F-|A|F-
+Straw Doll: Nail Barrage|Changing(C+ to A-)|A|B|F-|B|F-
+Straw Doll: Mallet Smash|B-(A-)|D|C+|F-|B+|F-
+Straw Doll: Hairpin|Unknown|Unknown|S+|Unknown|Unknown|Unknown
+Steel Arms V2: Tainted Voltage|A-|A|C|F-|B|F-
+Steel Arms V2: Kraken Impact|Unknown|Unknown|Unknown|Unknown|Unknown|Unknown
+Star Rage: Terra|B(B+)|D|B|F-|A-|F-
+Star Rage: Oberon|A|B|B-|F-|A|A
+Star Rage: Mercury|A-|D|B|F-|A+|F-
+Star Rage: Mars|B+|D|B+|F-|B|F-
+Star Rage: Jupiter|A-(A+)|A|C-|F-|B+|F-
+Star Rage: Asteroid|B+|B|B|F-|B+|F-
+Soul King: Dismantled Soul|B(A)|B|B(C+)|F-|B|F-
+Soul King: Don't Blink|B(S-)|Changing|B(C+)|F-|B|Changing
+Soul King: Spiteful Blows|B(A+)|C-|C+(C-)|F-|A-|F-
+Soul King: Spliced Cannon|B(A-)|A-|C+(C)|F-|B|F-
+Soul King: Superhuman Blitz|B|A-|B-|F-|A-|A
+Soul Manipulation: Blade Rush|Changing(F+ to B)|A|C|F-|A-|F-
+Soul Manipulation: Deformed Fist|A|B+|C+|F-|B|F-
+Soul Manipulation: Distorted Inflation|A-|B-|B|F-|B+|F-
+Soul Manipulation: Flesh Drill|Changing(C+ to B+)|B+|C|F-|A+|F-
+Soul Manipulation: Polymorphic Soul Isomer|Changing|Changing|Changing|F-|Changing|Changing
+Soul Manipulation: Soul Touch|C(C+)|B|B|F-|A|F-
+Soul Slice|B-|C|A|F-|B|F-
+Soul Stream|B-|D|B|F-|A-|F-
+Spear|B-|C-|A|F-|B|F-
+Spear Slam|A-|A|C|F-|B+|A
+Spiderweb|F-|S+|F+|F-|S+|F-
+Spin Kick|B-(A-)|D-|A+(B+)|F-|A|F-
+Squat Rush|Changing(C to B+)|C|A-|A|B+|S-
+Stampede|Changing(D to A+)|D|A|F-|A|S
+]==]
+
+for line in SKILL_RATING_SOURCE:gmatch("[^\r\n]+") do
+    local fields = {}
+    for field in line:gmatch("[^|]+") do
+        table.insert(fields, field)
+    end
+
+    if #fields == 7 then
+        SKILL_RATINGS[fields[1]] = {
+            fields[2], fields[3], fields[4],
+            fields[5], fields[6], fields[7]
+        }
+    end
+end
+
+local RATING_COLORS = {
+    ["F-"] = Color3.fromRGB(0, 0, 0),
+    ["F"] = Color3.fromRGB(55, 55, 55),
+    ["F+"] = Color3.fromRGB(115, 115, 115),
+    ["D-"] = Color3.fromRGB(190, 190, 190),
+    ["D"] = Color3.fromRGB(255, 255, 255),
+    ["D+"] = Color3.fromRGB(180, 235, 180),
+    ["C-"] = Color3.fromRGB(90, 230, 110),
+    ["C"] = Color3.fromRGB(0, 180, 45),
+    ["C+"] = Color3.fromRGB(135, 215, 255),
+    ["B-"] = Color3.fromRGB(65, 145, 255),
+    ["B"] = Color3.fromRGB(20, 75, 215),
+    ["B+"] = Color3.fromRGB(190, 145, 255),
+    ["A-"] = Color3.fromRGB(155, 80, 225),
+    ["A"] = Color3.fromRGB(105, 25, 165),
+    ["A+"] = Color3.fromRGB(255, 230, 145),
+    ["S-"] = Color3.fromRGB(255, 205, 45),
+    ["S"] = Color3.fromRGB(215, 160, 0),
+    ["S+"] = Color3.fromRGB(255, 150, 150),
+    ["SS-"] = Color3.fromRGB(255, 70, 70),
+    ["SS"] = Color3.fromRGB(200, 0, 0),
+    ["SS+"] = Color3.fromRGB(145, 255, 255),
+    ["SSS-"] = Color3.fromRGB(0, 225, 225),
+    ["SSS"] = Color3.fromRGB(0, 140, 150),
+    ["Unknown"] = Color3.fromRGB(0, 0, 0)
+}
+
+local function cooldownToRating(rawCooldown)
+    local cooldown = math.max(0, tonumber(rawCooldown) or 0)
+    local thresholds = {
+        {1, "SSS+"}, {1.5, "SSS"}, {2, "SSS-"},
+        {3, "SS+"}, {5, "SS"}, {7, "SS-"},
+        {10, "S+"}, {13, "S"}, {15, "S-"},
+        {18, "A+"}, {20, "A"}, {25, "A-"},
+        {30, "B+"}, {35, "B"}, {40, "B-"},
+        {50, "C+"}, {60, "C"}, {70, "C-"},
+        {80, "D+"}, {90, "D"}, {100, "D-"},
+        {125, "F+"}, {150, "F"}
+    }
+
+    -- 边界取较好评级，所以 1 秒为 SSS+、150 秒为 F。
+    for _, threshold in ipairs(thresholds) do
+        if cooldown <= threshold[1] then
+            return threshold[2]
+        end
+    end
+
+    return "F-"
+end
+
+local function compactRatingVariant(value)
+    local text = tostring(value or "Unknown")
+        :gsub("（", "(")
+        :gsub("）", ")")
+
+    local normal, variant = text:match("^%s*([^%(%)]+)%s*%(([^%(%)]+)%)%s*$")
+    if not normal then
+        return text
+    end
+
+    normal = normal:gsub("^%s+", ""):gsub("%s+$", "")
+    variant = variant:gsub("^%s+", ""):gsub("%s+$", "")
+
+    if string.lower(normal) == string.lower(variant) then
+        return normal
+    end
+
+    return normal .. "(" .. variant .. ")"
+end
+
+local function getSkillRatingValues(skillData)
+    if skillData.markAsKickable then
+        return {
+            "Unknown", "Unknown", "Unknown", "Unknown",
+            "Unknown", "Unknown", "Unknown"
+        }
+    end
+
+    local source = SKILL_RATINGS[skillData.name] or {
+        "Unknown", "Unknown", "Unknown",
+        "Unknown", "Unknown", "Unknown"
+    }
+
+    local values = {
+        source[1], source[2], source[3], source[4],
+        cooldownToRating(skillData.baseCooldown),
+        source[5], source[6]
+    }
+
+    for index, value in ipairs(values) do
+        values[index] = compactRatingVariant(value)
+    end
+
+    return values
+end
+
+local function colorToHex(color)
+    return string.format(
+        "#%02X%02X%02X",
+        math.round(color.R * 255),
+        math.round(color.G * 255),
+        math.round(color.B * 255)
+    )
+end
+
+local function escapeRichText(text)
+    return tostring(text or "")
+        :gsub("&", "&amp;")
+        :gsub("<", "&lt;")
+        :gsub(">", "&gt;")
+end
+
+local function colorizeRatingText(value, rainbowHue)
+    value = escapeRichText(value)
+
+    return value:gsub("([A-Za-z]+[%+%-]*)", function(token)
+        local color = RATING_COLORS[token]
+
+        if token == "SSS+" then
+            color = Color3.fromHSV(rainbowHue or 0, 1, 1)
+        end
+
+        if not color then
+            return token
+        end
+
+        return '<font color="' .. colorToHex(color) .. '">'
+            .. token
+            .. '</font>'
+    end)
+end
+
+local RATING_TITLES = {
+    "伤害", "范围", "隐蔽性", "加成", "冷却", "控制", "移动"
+}
+
+local function refreshSkillRatingLabels(skillData, row)
+    if not row or not row.RatingLabels then return end
+
+    local values = getSkillRatingValues(skillData)
+    local hue = (tick() * 0.18) % 1
+
+    for index, label in ipairs(row.RatingLabels) do
+        label.Text = RATING_TITLES[index]
+            .. "\n"
+            .. colorizeRatingText(values[index], hue)
+    end
+end
 
 function getInnatesFolder()
     local rd = player:FindFirstChild("ReplicatedData")
@@ -1398,6 +1864,12 @@ function loadToggleSettings()
     statNodeBundleEnabled = data.statNodeBundle == true
     AutoWeaponEnabled = data.fourDamage == true
     renameModeEnabled = data.renameMode == true
+	hideHotkeyEnabled = data.hideHotkeyEnabled ~= false
+if type(data.hideHotkeyName) == "string"
+    and Enum.KeyCode[hideHotkeyName]
+then
+    hideHotkeyName = data.hideHotkeyName
+end
 end
 
 refreshToggleSettings = function()
@@ -1419,6 +1891,8 @@ refreshToggleSettings = function()
             statNodeBundle = statNodeBundleEnabled,
             fourDamage = AutoWeaponEnabled,
             renameMode = renameModeEnabled,
+			hideHotkeyEnabled = hideHotkeyEnabled,
+hideHotkeyName = hideHotkeyName,
             savedAt = os.time()
         })
     elseif type(isfile) == "function"
@@ -3207,8 +3681,8 @@ end
 
     local frame = Instance.new("Frame")
     frame.Name = "MainFrame"
-    frame.Size = UDim2.new(0, 470, 0, 580)
-    frame.Position = UDim2.new(0.5, -235, 0.5, -290)
+frame.Size = UDim2.new(0, 1240, 0, 650)
+frame.Position = UDim2.new(0.5, -620, 0.5, -325)
     frame.BackgroundColor3 = COLOR_DARK_GRAY
     frame.BorderSizePixel = 0
     frame.Active = true
@@ -3254,8 +3728,8 @@ settingsButton.Parent = titleBar
 
 local settingsFrame = Instance.new("Frame")
 settingsFrame.Name = "SettingsFrame"
-settingsFrame.Size = UDim2.fromOffset(410, 338)
-settingsFrame.Position = UDim2.new(0.5, -205, 0.5, -169)
+settingsFrame.Size = UDim2.fromOffset(410, 440)
+settingsFrame.Position = UDim2.new(0.5, -205, 0.5, -220)
 settingsFrame.BackgroundColor3 = COLOR_DARK_GRAY
 settingsFrame.BorderSizePixel = 0
 settingsFrame.Visible = false
@@ -3386,6 +3860,56 @@ addSettingRow("自动扩展额外槽位并添加 Demon Vessel Innate", function(
 end, function(v)
     autoExtraDemonVesselEnabled = v
     if v then ensureDemonVesselSlot() end
+end)
+
+addSettingRow("按下按键隐藏", function()
+    return hideHotkeyEnabled
+end, function(value)
+    hideHotkeyEnabled = value
+end)
+
+local hotkeyRow = Instance.new("Frame")
+hotkeyRow.Size = UDim2.new(1, 0, 0, 41)
+hotkeyRow.BackgroundColor3 = COLOR_MEDIUM_GRAY
+hotkeyRow.ZIndex = 502
+hotkeyRow.Parent = settingsList
+
+local hotkeyRowCorner = Instance.new("UICorner")
+hotkeyRowCorner.CornerRadius = UDim.new(0, 5)
+hotkeyRowCorner.Parent = hotkeyRow
+
+local hotkeyLabel = Instance.new("TextLabel")
+hotkeyLabel.Size = UDim2.new(1, -150, 1, 0)
+hotkeyLabel.Position = UDim2.fromOffset(10, 0)
+hotkeyLabel.BackgroundTransparency = 1
+hotkeyLabel.Text = "设置隐藏按键"
+hotkeyLabel.TextColor3 = COLOR_WHITE
+hotkeyLabel.Font = Enum.Font.Gotham
+hotkeyLabel.TextSize = 12
+hotkeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+hotkeyLabel.ZIndex = 503
+hotkeyLabel.Parent = hotkeyRow
+
+local hotkeyBox = Instance.new("TextBox")
+hotkeyBox.Size = UDim2.fromOffset(132, 31)
+hotkeyBox.Position = UDim2.new(1, -138, 0, 5)
+hotkeyBox.BackgroundColor3 = COLOR_WHITE
+hotkeyBox.TextColor3 = COLOR_BLACK
+hotkeyBox.Font = Enum.Font.GothamBold
+hotkeyBox.TextSize = 12
+hotkeyBox.ClearTextOnFocus = false
+hotkeyBox.TextEditable = false
+hotkeyBox.Text = hideHotkeyName
+hotkeyBox.ZIndex = 503
+hotkeyBox.Parent = hotkeyRow
+
+local hotkeyBoxCorner = Instance.new("UICorner")
+hotkeyBoxCorner.CornerRadius = UDim.new(0, 4)
+hotkeyBoxCorner.Parent = hotkeyBox
+
+hotkeyBox.Focused:Connect(function()
+    hideHotkeyCaptureBox = hotkeyBox
+    hotkeyBox.Text = "按下任意按键..."
 end)
 
 settingsButton.MouseButton1Click:Connect(function()
@@ -5029,6 +5553,49 @@ InventoryAddAllButton = inventoryAddAllBtn,
     }
 end
 
+local function setupUIHideHotkey(ui)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if input.UserInputType ~= Enum.UserInputType.Keyboard then
+            return
+        end
+
+        if hideHotkeyCaptureBox then
+            local box = hideHotkeyCaptureBox
+            local keyCode = input.KeyCode
+
+            if keyCode ~= Enum.KeyCode.Unknown then
+                hideHotkeyName = keyCode.Name
+                box.Text = hideHotkeyName
+                hideHotkeyCaptureBox = nil
+                box:ReleaseFocus()
+                refreshToggleSettings()
+            end
+            return
+        end
+
+        if gameProcessed or not hideHotkeyEnabled then
+            return
+        end
+
+        if UserInputService:GetFocusedTextBox() then
+            return
+        end
+
+        local configuredKey = Enum.KeyCode[hideHotkeyName]
+        if configuredKey and input.KeyCode == configuredKey then
+            mainUIHidden = not mainUIHidden
+            ui.ScreenGui.Enabled = not mainUIHidden
+
+            local sequenceGui = player.PlayerGui:FindFirstChild(
+                "SkillSequenceEditorUI"
+            )
+            if sequenceGui then
+                sequenceGui.Enabled = not mainUIHidden
+            end
+        end
+    end)
+end
+
 local function showEquipContextMenu(skillData)
     if not uiRefs or not uiRefs.ScreenGui then return end
 
@@ -5218,31 +5785,29 @@ end
 
 local function showInnateContextMenu(innateData)
     if not uiRefs or not uiRefs.ScreenGui then return end
+
     local old = uiRefs.ScreenGui:FindFirstChild("InnateContextMenu")
     if old then old:Destroy() end
 
     local slots = getPlayerInnateSlots()
     local menu = Instance.new("Frame")
     menu.Name = "InnateContextMenu"
-    menu.Size = UDim2.fromOffset(220, 140) -- 高度增加，容纳新按钮
+    menu.Size = UDim2.fromOffset(220, 178)
     menu.BackgroundColor3 = COLOR_MEDIUM_GRAY
     menu.BorderSizePixel = 0
     menu.ZIndex = 220
     menu.Parent = uiRefs.ScreenGui
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = menu
-
     local mouse = UserInputService:GetMouseLocation()
     local inset = GuiService:GetGuiInset()
-    local x = mouse.X - inset.X
-    local y = mouse.Y - inset.Y
-    menu.Position = UDim2.fromOffset(x, y)
+    menu.Position = UDim2.fromOffset(
+        mouse.X - inset.X,
+        mouse.Y - inset.Y
+    )
 
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, -8, 0, 24)
-    title.Position = UDim2.new(0, 4, 0, 2)
+    title.Position = UDim2.fromOffset(4, 2)
     title.BackgroundTransparency = 1
     title.Text = "切换 Innate - " .. innateData.name
     title.TextColor3 = COLOR_WHITE
@@ -5252,10 +5817,9 @@ local function showInnateContextMenu(innateData)
     title.ZIndex = 221
     title.Parent = menu
 
-    -- 按钮容器（用于放置 1/2/3/4 槽位）
     local grid = Instance.new("Frame")
-    grid.Size = UDim2.new(1, -8, 0, 80) -- 固定高度以留出空间
-    grid.Position = UDim2.new(0, 4, 0, 26)
+    grid.Size = UDim2.new(1, -8, 0, 74)
+    grid.Position = UDim2.fromOffset(4, 26)
     grid.BackgroundTransparency = 1
     grid.Parent = menu
 
@@ -5265,103 +5829,123 @@ local function showInnateContextMenu(innateData)
     layout.FillDirectionMaxCells = 4
     layout.Parent = grid
 
-    -- 标准槽位按钮 (1, 2, 3, 4)
     for _, slotName in ipairs(slots) do
-        local num = tonumber(slotName)
-        if num and num <= 4 then -- 只显示 1-4 作为切换目标
-            local btn = Instance.new("TextButton")
-            btn.Text = slotName
-            btn.BackgroundColor3 = COLOR_BTN_BG
-            btn.TextColor3 = COLOR_WHITE
-            btn.Font = Enum.Font.GothamBold
-            btn.TextSize = 12
-            btn.ZIndex = 221
-            btn.Parent = grid
+        local number = tonumber(slotName)
 
-            local c = Instance.new("UICorner")
-            c.CornerRadius = UDim.new(0, 4)
-            c.Parent = btn
+        if number and number <= 4 then
+            local button = Instance.new("TextButton")
+            button.Text = slotName
+            button.BackgroundColor3 = COLOR_BTN_BG
+            button.TextColor3 = COLOR_WHITE
+            button.Font = Enum.Font.GothamBold
+            button.TextSize = 12
+            button.ZIndex = 221
+            button.Parent = grid
 
-            btn.MouseButton1Click:Connect(function()
+            button.MouseButton1Click:Connect(function()
                 setInnateToSlot(slotName, innateData.name)
                 menu:Destroy()
-                if uiRefs and uiRefs.RefreshInnateSlotLabel then
+
+                if uiRefs.RefreshInnateSlotLabel then
                     uiRefs.RefreshInnateSlotLabel()
                 end
             end)
         end
     end
 
-    -- ✅ 新增：无限Innate 创建按钮
-    local createBtn = Instance.new("TextButton")
-    createBtn.Name = "CreateInfiniteBtn"
-    createBtn.Size = UDim2.new(1, -12, 0, 26) -- 宽度占满
-    createBtn.Position = UDim2.new(0, 6, 1, -32) -- 紧贴底部
-    createBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255) -- 蓝色背景
-    createBtn.TextColor3 = COLOR_WHITE
-    createBtn.Font = Enum.Font.GothamBold
-    createBtn.TextSize = 12
-    createBtn.Text = "➕ 创建无限 Innate Slot"
-    createBtn.ZIndex = 221
-    createBtn.Parent = menu
+    local createButton = Instance.new("TextButton")
+    createButton.Size = UDim2.new(0.5, -8, 0, 30)
+    createButton.Position = UDim2.new(0, 6, 1, -70)
+    createButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    createButton.TextColor3 = COLOR_WHITE
+    createButton.Font = Enum.Font.GothamBold
+    createButton.TextSize = 11
+    createButton.Text = "添加此 Innate"
+    createButton.ZIndex = 221
+    createButton.Parent = menu
 
-    local createCorner = Instance.new("UICorner")
-    createCorner.CornerRadius = UDim.new(0, 4)
-    createCorner.Parent = createBtn
+    local removeButton = Instance.new("TextButton")
+    removeButton.Size = UDim2.new(0.5, -8, 0, 30)
+    removeButton.Position = UDim2.new(0.5, 2, 1, -70)
+    removeButton.BackgroundColor3 = COLOR_RED
+    removeButton.TextColor3 = COLOR_WHITE
+    removeButton.Font = Enum.Font.GothamBold
+    removeButton.TextSize = 11
+    removeButton.Text = "移除此 Innate"
+    removeButton.ZIndex = 221
+    removeButton.Parent = menu
 
-    createBtn.MouseButton1Click:Connect(function()
-        local player = Players.LocalPlayer
-        if not player then return end
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(1, -12, 0, 26)
+    closeButton.Position = UDim2.new(0, 6, 1, -34)
+    closeButton.BackgroundColor3 = COLOR_BTN_BG
+    closeButton.TextColor3 = COLOR_WHITE
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.TextSize = 11
+    closeButton.Text = "关闭"
+    closeButton.ZIndex = 221
+    closeButton.Parent = menu
 
-        local replicatedData = player:FindFirstChild("ReplicatedData")
-        if not replicatedData then return end
+    createButton.MouseButton1Click:Connect(function()
+        local folder = getPlayerInnatesFolder()
+        if not folder then return end
 
-        local innatesFolder = replicatedData:FindFirstChild("innates")
-        if not innatesFolder then 
-            warn("未找到 innates 文件夹")
-            return 
+        while folder:FindFirstChild(tostring(nextCustomInnateId)) do
+            nextCustomInnateId += 1
         end
 
-        -- ✅ 使用计数器生成名字
-        local newSlotName = tostring(nextCustomInnateId)
-
-        -- 创建新的 StringValue
         local newSlot = Instance.new("StringValue")
-        newSlot.Name = newSlotName
-        newSlot.Value = innateData.name -- 值设为当前选中的 Innate 名字
-        newSlot.Parent = innatesFolder
+        newSlot.Name = tostring(nextCustomInnateId)
+        newSlot.Value = innateData.name
+        newSlot:SetAttribute("JJI_CreatedInnateSlot", true)
+        newSlot.Parent = folder
+        nextCustomInnateId += 1
 
-        -- ✅ 计数器 +1，为下次创建做准备
-        nextCustomInnateId = nextCustomInnateId + 1
-
-        -- 提示成功
-        createBtn.Text = "✅ 已创建 Slot " .. newSlotName
-        createBtn.BackgroundColor3 = COLOR_SUCCESS
-
-        task.delay(1, function()
-            if createBtn and createBtn.Parent then
-                createBtn.Text = "➕ 创建无限 Innate Slot"
-                createBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-                menu:Destroy() -- 创建完自动关闭菜单，防止重复点
-            end
-        end)
-
-        -- 刷新主界面显示
-        if uiRefs and uiRefs.RefreshInnateSlotLabel then
+        if uiRefs.RefreshInnateSlotLabel then
             uiRefs.RefreshInnateSlotLabel()
         end
+
+        menu:Destroy()
     end)
 
-    -- 点击外部关闭
-    task.delay(0, function()
-        local conn
-        conn = UserInputService.InputBegan:Connect(function(input, gpe)
-            if gpe then return end
-            if menu and menu.Parent and input.UserInputType == Enum.UserInputType.MouseButton1 then
+    removeButton.MouseButton1Click:Connect(function()
+        local folder = getPlayerInnatesFolder()
+        local removedCount = 0
+
+        if folder then
+            for _, slot in ipairs(folder:GetChildren()) do
+                if slot:IsA("StringValue")
+                    and tostring(slot.Value) == innateData.name
+                then
+                    if slot:GetAttribute("JJI_CreatedInnateSlot") == true
+                        or (tonumber(slot.Name) or 0) > 4
+                    then
+                        slot:Destroy()
+                    else
+                        -- 原生 1-4 槽位不销毁对象，只清空这个 Innate。
+                        slot.Value = ""
+                    end
+
+                    removedCount += 1
+                end
+            end
+        end
+
+        removeButton.Text = "已移除(" .. tostring(removedCount) .. ")"
+
+        if uiRefs.RefreshInnateSlotLabel then
+            uiRefs.RefreshInnateSlotLabel()
+        end
+
+        task.delay(0.5, function()
+            if menu and menu.Parent then
                 menu:Destroy()
-                if conn then conn:Disconnect() end
             end
         end)
+    end)
+
+    closeButton.MouseButton1Click:Connect(function()
+        menu:Destroy()
     end)
 end
 
@@ -5479,17 +6063,20 @@ local function refreshAutoBtn()
 end
     refreshAutoBtn()
 
-    addBtn.MouseButton1Click:Connect(function()
-        local ok = pcall(function() return giveWeaponToBackpack(weaponData.name) end)
-        addBtn.Text = ok and "已添加！" or "添加失败"
-        addBtn.BackgroundColor3 = ok and COLOR_SUCCESS or COLOR_RED
-        task.delay(0.8, function()
-            if addBtn and addBtn.Parent then
-                addBtn.Text = "添加到背包"
-                addBtn.BackgroundColor3 = COLOR_GREEN
-            end
-        end)
-    end)
+addBtn.MouseButton1Click:Connect(function()
+    local ok, action = toggleManualWeapon(weaponData.name)
+
+    if ok and action == "added" then
+        addBtn.Text = "已添加，再按删除"
+        addBtn.BackgroundColor3 = COLOR_SUCCESS
+    elseif ok and action == "removed" then
+        addBtn.Text = "已删除，再按添加"
+        addBtn.BackgroundColor3 = COLOR_RED
+    else
+        addBtn.Text = "操作失败"
+        addBtn.BackgroundColor3 = COLOR_RED
+    end
+end)
 
 autoBtn.MouseButton1Click:Connect(function()
     local weaponName = tostring(
@@ -5722,9 +6309,18 @@ end)
         end)
     else
         -- 原有的添加逻辑
-        local ok = giveWeaponToBackpack(weaponData.name)
-        nameButton.Text = ok and (" 已添加: " .. weaponData.name) or (" 添加失败: " .. weaponData.name)
-        nameButton.BackgroundColor3 = ok and COLOR_SUCCESS or COLOR_RED
+        local ok, action = toggleManualWeapon(weaponData.name)
+
+if ok and action == "added" then
+    nameButton.Text = " 已添加: " .. weaponData.name
+    nameButton.BackgroundColor3 = COLOR_SUCCESS
+elseif ok and action == "removed" then
+    nameButton.Text = " 已删除: " .. weaponData.name
+    nameButton.BackgroundColor3 = COLOR_RED
+else
+    nameButton.Text = " 操作失败: " .. weaponData.name
+    nameButton.BackgroundColor3 = COLOR_RED
+end
         task.delay(0.7, function() if nameButton.Parent then nameButton.Text = " " .. weaponData.name nameButton.BackgroundColor3 = COLOR_BTN_BG end end)
     end
 end)
@@ -5913,84 +6509,93 @@ end
 local function createRow(ui, skillData, order)
     local rowFrame = Instance.new("Frame")
     rowFrame.Name = "Row_" .. skillData.name
-    rowFrame.Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT)
+    rowFrame.Size = UDim2.new(1, 0, 0, 66)
     rowFrame.BackgroundTransparency = 1
     rowFrame.LayoutOrder = order
     rowFrame.Parent = ui.ScrollFrame
 
     local starButton = Instance.new("TextButton")
     starButton.Name = "FavoriteButton"
-    starButton.Size = UDim2.new(0, 28, 1, 0)
-    starButton.Position = UDim2.new(0, 0, 0, 0)
+    starButton.Size = UDim2.fromOffset(28, 66)
     starButton.BackgroundColor3 = COLOR_BTN_BG
     starButton.Text = favoriteSkills[skillData.name] and "★" or "☆"
-    starButton.TextColor3 = favoriteSkills[skillData.name] and COLOR_FAVORITE or COLOR_WHITE
+    starButton.TextColor3 = favoriteSkills[skillData.name]
+        and COLOR_FAVORITE or COLOR_WHITE
     starButton.Font = Enum.Font.GothamBold
     starButton.TextSize = 16
     starButton.AutoButtonColor = false
     starButton.Parent = rowFrame
 
-    local starCorner = Instance.new("UICorner")
-    starCorner.CornerRadius = UDim.new(0, 4)
-    starCorner.Parent = starButton
-
-    local kickableLabel = Instance.new("TextLabel")
-    kickableLabel.Name = "KickableLabel"
-    kickableLabel.Size = UDim2.new(0, 78, 1, 0)
-    kickableLabel.Position = UDim2.new(1, -78, 0, 0)
-    kickableLabel.BackgroundColor3 = COLOR_KICKABLE_TAG_BG
-    kickableLabel.TextColor3 = COLOR_KICKABLE_TAG_TEXT
-    kickableLabel.Font = Enum.Font.GothamBold
-    kickableLabel.TextSize = 12
-    kickableLabel.Text = "[Kickable]"
-    kickableLabel.Visible = skillData.markAsKickable
-    kickableLabel.Parent = rowFrame
-
-    local kickableCorner = Instance.new("UICorner")
-    kickableCorner.CornerRadius = UDim.new(0, 4)
-    kickableCorner.Parent = kickableLabel
-
     local tagButton = Instance.new("TextButton")
     tagButton.Name = "TagButton"
-    tagButton.Size = UDim2.new(0.42, -4, 1, 0)
-    tagButton.Position = UDim2.new(0, 34, 0, 0)
+    tagButton.Position = UDim2.fromOffset(32, 0)
+    tagButton.Size = UDim2.fromOffset(180, 66)
     tagButton.BackgroundColor3 = COLOR_BTN_BG
     tagButton.TextColor3 = COLOR_TAG_GREEN
     tagButton.Font = Enum.Font.Gotham
-    tagButton.TextSize = 12
+    tagButton.TextSize = 13
+    tagButton.TextWrapped = true
     tagButton.TextXAlignment = Enum.TextXAlignment.Left
     tagButton.AutoButtonColor = false
     tagButton.Text = buildTagOnlyText(skillData)
     tagButton.Parent = rowFrame
 
-    local tagCorner = Instance.new("UICorner")
-    tagCorner.CornerRadius = UDim.new(0, 4)
-    tagCorner.Parent = tagButton
-
     local nameButton = Instance.new("TextButton")
     nameButton.Name = "NameButton"
+    nameButton.Position = UDim2.fromOffset(216, 0)
+    nameButton.Size = UDim2.fromOffset(300, 66)
     nameButton.BackgroundColor3 = COLOR_BTN_BG
     nameButton.TextColor3 = COLOR_WHITE
     nameButton.Font = Enum.Font.Gotham
-    nameButton.TextSize = 12
+    nameButton.TextSize = 13
+    nameButton.TextWrapped = true
     nameButton.TextXAlignment = Enum.TextXAlignment.Left
     nameButton.AutoButtonColor = false
     nameButton.Text = buildNameOnlyText(skillData)
     nameButton.Parent = rowFrame
 
-    local rightReserved = skillData.markAsKickable and 82 or 0
-    tagButton.Size = UDim2.new(0.46, -4, 1, 0)
-    nameButton.Position = UDim2.new(0.46, 34, 0, 0)
-    nameButton.Size = UDim2.new(0.54, -(34 + rightReserved), 1, 0)
+    local kickableLabel = Instance.new("TextLabel")
+    kickableLabel.Name = "KickableLabel"
+    kickableLabel.Size = UDim2.fromOffset(80, 20)
+    kickableLabel.Position = UDim2.fromOffset(432, 2)
+    kickableLabel.BackgroundColor3 = COLOR_KICKABLE_TAG_BG
+    kickableLabel.TextColor3 = COLOR_KICKABLE_TAG_TEXT
+    kickableLabel.Font = Enum.Font.GothamBold
+    kickableLabel.TextSize = 13
+    kickableLabel.Text = "[Kickable]"
+    kickableLabel.Visible = skillData.markAsKickable
+    kickableLabel.ZIndex = 3
+    kickableLabel.Parent = rowFrame
 
-    local nameCorner = Instance.new("UICorner")
-    nameCorner.CornerRadius = UDim.new(0, 4)
-    nameCorner.Parent = nameButton
+    local ratingLabels = {}
+    local ratingStartX = 522
+    local ratingWidth = 96
+
+    for index = 1, 7 do
+        local ratingLabel = Instance.new("TextLabel")
+        ratingLabel.Name = "Rating_" .. tostring(index)
+        ratingLabel.Position = UDim2.fromOffset(
+            ratingStartX + ((index - 1) * ratingWidth),
+            0
+        )
+        ratingLabel.Size = UDim2.fromOffset(ratingWidth - 4, 66)
+        ratingLabel.BackgroundColor3 = Color3.fromRGB(43, 43, 49)
+        ratingLabel.BorderSizePixel = 0
+        ratingLabel.TextColor3 = COLOR_WHITE
+        ratingLabel.Font = Enum.Font.GothamBold
+        ratingLabel.TextSize = 13
+        ratingLabel.TextWrapped = true
+        ratingLabel.RichText = true
+        ratingLabel.Parent = rowFrame
+
+        table.insert(ratingLabels, ratingLabel)
+    end
 
     starButton.MouseButton1Click:Connect(function()
-        favoriteSkills[skillData.name] = not favoriteSkills[skillData.name] or nil
-        if favoriteSkills[skillData.name] == false then
+        if favoriteSkills[skillData.name] then
             favoriteSkills[skillData.name] = nil
+        else
+            favoriteSkills[skillData.name] = true
         end
 
         saveFavoritesToFile()
@@ -6019,7 +6624,6 @@ local function createRow(ui, skillData, order)
     tagButton.MouseLeave:Connect(hoverLeave)
     nameButton.MouseEnter:Connect(hoverEnter)
     nameButton.MouseLeave:Connect(hoverLeave)
-
     tagButton.MouseButton1Click:Connect(clickSkill)
     nameButton.MouseButton1Click:Connect(clickSkill)
 
@@ -6037,11 +6641,13 @@ local function createRow(ui, skillData, order)
         TagButton = tagButton,
         NameButton = nameButton,
         KickableLabel = kickableLabel,
+        RatingLabels = ratingLabels,
         SkillData = skillData
     }
 
     setButtonVisual(skillData)
     updateSingleRowText(skillData)
+    refreshSkillRatingLabels(skillData, rowMap[skillData.name])
 end
 
 local function rebuildSkillList(ui)
@@ -6058,7 +6664,7 @@ local function rebuildSkillList(ui)
         createRow(ui, skillData, i)
     end
 
-    local totalHeight = (#filtered * (BUTTON_HEIGHT + ROW_PADDING)) + 8
+    local totalHeight = (#filtered * (66 + ROW_PADDING)) + 8
     ui.ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
     updateAllRowVisuals()
 end
@@ -6656,7 +7262,7 @@ function enableDragAndResize(ui)
             )
         elseif resizing and input.UserInputType == Enum.UserInputType.MouseMovement then
             local delta = input.Position - startMousePos
-            local newWidth = math.max(320, startFrameSize.Width.Offset + delta.X)
+            local newWidth = math.max(960, startFrameSize.Width.Offset + delta.X)
             local newHeight = math.max(260, startFrameSize.Height.Offset + delta.Y)
 
             frame.Size = UDim2.new(0, newWidth, 0, newHeight)
@@ -6785,12 +7391,19 @@ end
 --------------------------------------------------
 function startCooldownRenderLoop()
     task.spawn(function()
-        while uiRefs and uiRefs.ScreenGui and uiRefs.ScreenGui.Parent do
+        while uiRefs
+            and uiRefs.ScreenGui
+            and uiRefs.ScreenGui.Parent
+        do
             for _, skillData in ipairs(scannedSkills) do
-                if rowMap[skillData.name] then
+                local row = rowMap[skillData.name]
+
+                if row then
                     updateSingleRowText(skillData)
+                    refreshSkillRatingLabels(skillData, row)
                 end
             end
+
             task.wait(0.1)
         end
     end)
@@ -6953,6 +7566,7 @@ task.spawn(function()
 end)
 
 uiRefs = createSkillUI()
+setupUIHideHotkey(uiRefs)
 
 if chantingEnabled then setChantingEnabled(true) end
 if statNodeBundleEnabled then setStatNodeBundleEnabled(true) end
