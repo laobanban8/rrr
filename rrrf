@@ -3787,6 +3787,75 @@ function toggleCharacterStatus(statusName, rawValue)
         statusValue
 end
 
+--------------------------------------------------
+-- 强制白名单技能可获得
+-- 只处理 WHITELIST_SKILLS 中的技能
+--------------------------------------------------
+local function forceWhitelistSkillObtainable(skillFolder)
+    if not skillFolder or not skillFolder:IsA("Folder") then
+        return false
+    end
+
+    local changed = false
+
+    --------------------------------------------------
+    -- 处理 Attribute 形式的 Unobtainable
+    --------------------------------------------------
+    if skillFolder:GetAttribute("Unobtainable") ~= nil then
+        pcall(function()
+            skillFolder:SetAttribute(
+                "Unobtainable",
+                false
+            )
+        end)
+
+        changed = true
+    end
+
+    --------------------------------------------------
+    -- 查找子对象形式的 Unobtainable
+    -- 忽略大小写
+    --------------------------------------------------
+    local unobtainableObject = nil
+
+    for _, child in ipairs(skillFolder:GetChildren()) do
+        if normalizeKey(child.Name)
+            == normalizeKey("Unobtainable")
+        then
+            unobtainableObject = child
+            break
+        end
+    end
+
+    if unobtainableObject then
+        if unobtainableObject:IsA("BoolValue") then
+            unobtainableObject.Value = false
+            changed = true
+
+        elseif unobtainableObject:IsA("StringValue") then
+            unobtainableObject.Value = "false"
+            changed = true
+
+        elseif unobtainableObject:IsA("NumberValue")
+            or unobtainableObject:IsA("IntValue")
+        then
+            unobtainableObject.Value = 0
+            changed = true
+        end
+    else
+        --------------------------------------------------
+        -- 如果完全没有 Unobtainable，则创建 BoolValue
+        --------------------------------------------------
+        local newValue = Instance.new("BoolValue")
+        newValue.Name = "Unobtainable"
+        newValue.Value = false
+        newValue.Parent = skillFolder
+        changed = true
+    end
+
+    return changed
+end
+
 
 
 --------------------------------------------------
@@ -3804,61 +3873,88 @@ function scanSkills()
 
     local snapshotChanged = false
 
-    for _, skillFolder in ipairs(skillsFolder:GetChildren()) do
-        if skillFolder:IsA("Folder") then
-            local skillName = skillFolder.Name
-            local currentUnobtainable =
-                getValue(skillFolder, "Unobtainable") == true
-            local attributeSnapshot =
-                skillFolder:GetAttribute("JJI_OriginalUnobtainable")
+for _, skillFolder in ipairs(skillsFolder:GetChildren()) do
+    if skillFolder:IsA("Folder") then
+        local skillName = skillFolder.Name
 
-            -- 优先使用首次扫描快照，绝不根据脚本改后的 false 清除标签。
-            local originalUnobtainable =
-                currentUnobtainable
-                or attributeSnapshot == true
-                or originalKickableSkills[skillName] == true
+        local isWhitelisted =
+            inWhitelist(skillName)
 
-            local forceKickable =
-                FORCE_KICKABLE_SKILLS[skillName] == true
-            local shouldMark = forceKickable
-                or (originalUnobtainable and not inWhitelist(skillName))
-
-            if shouldMark and originalKickableSkills[skillName] ~= true then
-                originalKickableSkills[skillName] = true
-                snapshotChanged = true
-            end
-
-            -- 同一服务器内即使局部重扫，也能读取修改前状态。
-            if attributeSnapshot == nil then
-                pcall(function()
-                    skillFolder:SetAttribute(
-                        "JJI_OriginalUnobtainable",
-                        originalUnobtainable
-                    )
-                end)
-            end
-
-            local skillData = {
-                name = skillName,
-                folder = skillFolder,
-                unobtainable = originalUnobtainable,
-                originalUnobtainable = originalUnobtainable,
-                markAsKickable = shouldMark,
-                baseCooldown = tonumber(
-                    getChildValue(skillFolder, "Cooldown")
-                ) or 0,
-                canBlackFlash = getStringTrue(
-                    skillFolder, "CanBlackFlash"
-                ),
-                canChant = getStringTrue(skillFolder, "CanChant"),
-                bypassStun = getBoolTrue(skillFolder, "BypassStun"),
-                cooldownEnd = 0
-            }
-
-            table.insert(scannedSkills, skillData)
-            skillMap[skillName] = skillData
+        if isWhitelisted then
+            forceWhitelistSkillObtainable(skillFolder)
         end
+
+        local currentUnobtainable
+
+        if isWhitelisted then
+            currentUnobtainable = false
+        else
+            currentUnobtainable =
+                getValue(skillFolder, "Unobtainable") == true
+        end
+
+        local attributeSnapshot =
+            skillFolder:GetAttribute("JJI_OriginalUnobtainable")
+
+        local originalUnobtainable =
+            currentUnobtainable
+            or attributeSnapshot == true
+            or originalKickableSkills[skillName] == true
+
+        local forceKickable =
+            FORCE_KICKABLE_SKILLS[skillName] == true
+
+        local shouldMark =
+            forceKickable
+            or (originalUnobtainable and not isWhitelisted)
+
+        if shouldMark
+            and originalKickableSkills[skillName] ~= true
+        then
+            originalKickableSkills[skillName] = true
+            snapshotChanged = true
+        end
+
+        if attributeSnapshot == nil then
+            pcall(function()
+                skillFolder:SetAttribute(
+                    "JJI_OriginalUnobtainable",
+                    originalUnobtainable
+                )
+            end)
+        end
+
+        local skillData = {
+            name = skillName,
+            folder = skillFolder,
+            unobtainable = currentUnobtainable,
+            originalUnobtainable = originalUnobtainable,
+            markAsKickable = shouldMark,
+            baseCooldown = tonumber(
+                getChildValue(
+                    skillFolder,
+                    "Cooldown"
+                )
+            ) or 0,
+            canBlackFlash = getStringTrue(
+                skillFolder,
+                "CanBlackFlash"
+            ),
+            canChant = getStringTrue(
+                skillFolder,
+                "CanChant"
+            ),
+            bypassStun = getBoolTrue(
+                skillFolder,
+                "BypassStun"
+            ),
+            cooldownEnd = 0
+        }
+
+        table.insert(scannedSkills, skillData)
+        skillMap[skillName] = skillData
     end
+end
 
     if snapshotChanged then
         saveKickableSnapshot()
