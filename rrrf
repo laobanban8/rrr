@@ -213,149 +213,867 @@ local scannedInventoryItems = {}
 local inventoryItemMap = {}
 local inventoryRowMap = {}
 local currentInventorySearchText = ""
-local INVENTORY_ITEM_NAMES = {
-    "The Egoist","The Red Mist","The Black Silence","Casino Fighter","Crowd Favorite","Money Maker","Seasoned Sorcerer",
-    "Farmer Era Sorcerer","Eternal","Without Limits","Monarch","True King","Unchained","The Strongest","King of Curses",
-    "Queen of Curses","Prince of Sparks","The Ultimate Being","Restless Gambler","The Singularity","Beyond Human","Fastest Sorcerer",
-    "Cursed Rose","Volcano Head","The Abyss","Judicial Prodigy","Cursed Architect","God of Lightning","7:3 Sorcerer","Salmon Roe",
-    "Blood Reaper","Voodooist","Ice Chef","The Exception","Heart of Fire","The Witch","Constructor","Shadow Ninja","Infinite Sorcerer",
-    "Diamond Sorcerer","Gold Sorcerer","Silver Sorcerer","Bronze Sorcerer","Fighter","Cog","Killer","Battleworn","Warrior","Champion",
-    "Brawler","Battle Crazy","Warlord","Martial Demon","King of Fighters","Finger Collector","El Finger","go outside","please touch grass",
-    "Heian Spirit","Heian Angel","Heian Demon","Heian Centimillionaire","Heian Multimillionaire","Heian Millionaire","Domain Master",
-    "Lord of Domains","God of Domains","Maximum Master","Maximum Overdrive","Maximum Merchant","Heian Era Sorcerer","lab rat","Jujutsu IRS",
-    "Jujutsu CIA","Divine Heian Sorcerer","Nah I'd Win","Stand Proud","The Fraudulent One","Release Festival","1 Year Anniversary",
-    "King of Souls","The Calamity","The Chains of Calamity","Exchange Student","Exchange Champion","Exchange Tester","Mugen Piercer",
-    "Cataclysmic Rift","The Judge","Content Creator","Jade Neck Beads","Jade Wrist Beads","Gaze of Power","High Ranking Sorcerer's Hakama",
-    "High Ranking Sorcerer's Top","Sorcerer General's Top","Sorcerer General's Hakama","Adventurer's Top","Adventurer's Bottom",
-    "Checkered Kimono","Savage Tiger Slayer's Coat","Savage Tiger Slayer's Top","Savage Tiger Slayer's Bottom","Fighter Monk's Top",
-    "Fighter Monk's Bottom","Slayer's Top","Slayer's Bottom","Flashy Kimono","Flashy Slayer's Top","Flashy Slayer's Bottom",
-    "Hare Beast's Top","Hare Beast's Bottom","Hare Beast's Hat","Ring of Hares","Ring of Snakes","Ring of Roosters","Winged Tiger's Ring",
-    "Cleanup Crew Battery Pack","White Lion's Mane","Cleanup Crew Top","Cleanup Crew Bottom","Flow State","Lime T-Shirt of Legend",
-    "Dark Green Trousers of Legend","Lobotomy Volcano Cape","Bloody Black Cape","Strongest Hat","Jujutsu Society Executioner Top",
-    "Jujutsu Society Executioner Bottom","Blood Stained Beads","Blood Stained Neck Beads","Martial Fighter's Haori","Martial Fighter's Tobi",
-    "Lord's Gaze","Dark Heian Robe","Dark Heian Pants","Scarf of The Chosen","Golden Haori","Release Party Hat","Fragment of Lapse",
-    "Fragment of Reversal","Phantasis","Helkytis","Dynesis","Aetherion","Crown of Azure","Crown of Crimson","The Imaginary King","Celestia",
-    "Ragna","Impera","Nascent Cosmic Scarf","Nascent Cosmic Cloak","Blackhole Buddy","Heian Gauntlet","Spiked Gauntlet","Twin Kusarigama",
-    "Turbo Mask","Infinity Piercer","Sword of Lapse Blue","Sword of Reversal Red","Hollow Sword","Innate Slot 3","Innate Slot 4","Innate Bag",
-    "Skip Spins","Emote Slots","Item Notifier","Heavenly Restriction","10 Spins","50 Spins","100 Spins","250 Spins","500 Spins","1000 Spins",
-    "Premium Battlepass","2X EXP 15 Minutes","2X EXP 1 Hour","2X EXP 6 Hours","2X EXP 12 Hours","2X Mastery 15 Minutes",
-    "2X Mastery 1 Hour","2X Mastery 6 Hours","2X Mastery 12 Hours","2X Cash 15 Minutes","2X Cash 1 Hour","2X Cash 6 Hours",
-    "2X Cash 12 Hours","Demon Finger","Dimensional Finger","Heian Relic","Prison Realm Fragment","Prison Realm","Awakened Prison Realm",
-    "Strongest Bottom Half","Maximum Scroll","Dimensional Maximum Scroll","Domain Shard","Purified Curse Hand","Energy Nature Scroll",
-    "Scroll of Overwhelming Cursed Energy","Scroll of Demonic Hellstomp","Scroll of Acid Spit","Scroll of Mantis Kick",
-    "Scroll of Golden Wind","Snow Brigade Skill Scroll","Sleigh Skill Scroll","Healing Frost Skill Scroll","Scroll of Absolute Zero",
-    "Scroll of Lunar Strikes","Scroll of Stampede","Calamity Ward","Infinity Piercing Vial","Infinity Shield Vial","Binding Chains",
-    "Calamity Luck Vial","Calamity Fortune Gourd","Withered Calamity Eyeball","Wooden Calamity Eyeball","Polished Calamity Eyeball",
-    "Golden Calamity Eyeball","Dorayaki","Takoyaki","Damage Vial","Focus Vial","Agility Vial","Luck Vial","Health Vial","Mastery Talisman",
-    "Fortune Gourd","Damage Gourd","Focus Gourd","Rage Gourd","Withered Beckoning Cat","Wooden Beckoning Cat","Polished Beckoning Cat",
-    "Golden Beckoning Cat","White Lotus","Sapphire Lotus","Jade Lotus","Iridescent Lotus","Mastery Vial","Mastery Scroll","AFK Chest",
-    "Exchange Chest","Testing Exchange Voucher","Premium Exchange Chest","Feathered Spear","Inverted Spear Of Heaven","Winter Bell",
-    "Playful Cloud","Rusty Katana","Iron Blade","Purifying Dagger","Executioner Sword","Infinity Shard","Copy","Copy Katana","Vengeance",
-    "Jet Black","Dragon Bone","Blood Sword","Ravenous Axe","Split Soul","Slaughter Demon","Viscera Scythe","Electric Staff","Inventory Curse",
-    "Rot Heart","Effigy Nail","Curse Flesh","Eerie Metal Ingot","Cursed Alloy Ingot","Blood Steel Ingot","Cursebloom","Spring Puff",
-    "Frost Petal","Eerie Powder","Cursed Log","Ruin Shard","Magma Shard","Cracked Stone","Bonsai Wood","Golem Totem","Heavenly Chains",
-    "Cursed Fragment","Cursed Tentacle","Transfigured Human","Volcanic Ash","Demon Blob","Mantis Arm","Egg Jaw Eyeball","Monk Beads",
-    "Paper Talisman","Cursed School Key","Yasohachi Bridge Key","Tokyo Subway Key","Eerie Farm Key","Detention Center Key","Cursed Spine",
-    "Cursed Eyes","Cursed Skull","Cursed Legs","Cursed Heart","Blood Beam Fragment","Swap Onslaught Fragment","Projection Execution Fragment",
-    "Cargo Barrage Fragment","Mission Essence","Exorcise Essence","Curse User Essence","Destroy Essence","Investigate Essence",
-    "Star Plasma Essence","Capture Essence","Black Hakama","Black Shirt","Gray Shirt","White Button Up Shirt","Black Button Up Shirt",
-    "Purple Pants","Midnight Button Up Shirt","Brown Shirt","Blue Jeans","Teal Button Up Shirt","Blue Shirt","Military Jeans","Red Shirt",
-    "Orange Shirt","Orange Pants","Peach Shirt","Peach Pants","Cargo Pants","Black Beanie","Copper Ring","Daylight Hakama","Midnight Hakama",
-    "Black Techsuit","Silver Techsuit","Zen Jacket","Zen Pants","Bandana","Iron Ring","Sorcerer Jacket","Sorcerer Jumpskirt","Sorcerer Pants",
-    "Black Suit","Black Pants","Onyx Techsuit","Cryo Techsuit","Sakura Hakama","Cursed Jacket","Sapphire Jacket","Sapphire Pants",
-    "Baseball Cap","Eyepatch","Green Haori","Beige Ronin Tunic","Violet Ronin Tunic","Beige Tobi","White Tobi","White Ronin Tunic",
-    "Snow White Nagagi","Black Ronin Tunic","Red Haori","Black Tobi","Silver Ring","Vow of Impact","Vow of Justice","Vow of Red Reflection",
-    "Vow of the Unbreakable","Vow of Ceaseless Slashes","Vow of Spatial Pulverize","Vow of Snow Grave","Vow of Swap Onslaught",
-    "Vow of Blood Beam","Magma Jacket","Magma Pants","Obsidian Jacket","Obsidian Pants","Ninja Headband","Headphones",
-    "Overflowing Ring","Powerful Ring","Venom Ring","Ring of Fragility","Focusing Ring","Tactful Ring","Dusk Hakama","Heian Era Robe",
-    "Heian Era Pants","Hazard Techsuit","Rust Techsuit","Vest Of Ruin","Rot Cleanser","Spring Patterned Haori","Crimson Patterned Haori",
-    "Garment of Balance","Deep Assassin Garment","Dark Patterned Haori","Garment of The Stars","Ocean Jacket","Soul Stitched Pants",
-    "Soul Face Stitches","Soul Ring","Molten Ring","Resonating Eyepatch","Volcano Pants","Blessed Scarf","Demon Face","Demonic Tobi",
-    "Demonic Robe","Soul Robe","Overtime Suit","Overtime Trousers","Special-Grade Sorcerer Jacket","Special-Grade Sorcerer Jumpskirt",
-    "Special-Grade Sorcerer Pants","Ring of Thorns","Rotten Ring","Enlightenment Beads","Sorcerer Killer Pants","Heavenly Black Shirt",
-    "Ocean Blue Sailor's Vest","Deep Black Sailor's Vest","Cloak of Inferno","Violet Tobi","Violet Patterned Haori","Waves Patterned Haori",
-    "Orange Haori","Brown Haori","Night Grey Nagagi","Grey Hakama","Dark Hakama","Red High Skirt","White High Skirt","Grey High Skirt",
-    "Beige Ronin Pants","White Ronin Pants","Black Ronin Pants","Camo Tech Hoodie","Red Patterned Hoodie","Expedition Scout Jacket",
-    "A Sinner's Cloak","Blood Red Jacket","Blood Red Pants","A Sinner's Suit","A Sinner's Trousers","Perception Blocking Mask",
-    "The Impossible Dream","Eyes of Insight","Bloodthirsty Kimono","Bloodthirsty Hakama","Wise Man's Kimono","Wise Man's Hakama",
-    "Eyes of Bloodthirst","Eyes of Willpower","Rotten Chains","Hard Boiled Prisoner Shirt","Hard Boiled Prisoner Pants","Candy Cane",
-    "Title: Snow Angel","Title: Winter 2025","Festive Top","Festive Pants","Festive Hat","Dark Tang Suit","Scale Patterned Trousers",
-    "Patterned Tang Suit","Gilded Patterned Trousers","Floral Tang Suit","Dark Patterned Trousers","Red Suit of Good Luck",
-    "Red Trousers of Good Luck","Lunar New Years Cloak","Red Mask of The Snake","Black Mask of The Snake","Title: Lunar New Year 2025",
-    "Dumplings","Snake Charm","Snake Talisman","Lunar Fireworks","Red Envelope","Pumpkin Reaper Robe","Pumpkin Reaper Pants",
-    "Pumpkin Reaper's Head","Hallowed Scythe","Ghost Robe","Ghost Pants","Title: Halloween 2025","Title: Hallowed One","Candy",
-    "Halloween Chest","Cursed Treat","Hallowed Treat","Halloween Fireworks","Frosted Coat","Frosted Leggings","Halo of Frost","Ring of Frost",
-    "Twin Cryoblasters","Title: Winter 2026","Title: Frost Slayer","Title: Ice Exorcist","Title: Krampus Slayer","Title: Winter's End",
-    "Frost Essence","Winter Chest","Lucky Candy Cane","Lucky Peppermint","Lunar Soldier's Armor","Lunar Soldier's Greaves",
-    "Lunar Soldier's Cone Hat","Eye of the Fire Horse","Spear of the Impaler","Horse Talisman","Title: Lunar Flames","Title: Lunar Farewell",
-    "Title: Lunar Sorcerer","Title: Nian Exorcist","Lucky Bao","Purple Envelope","Red Envelope 2026","Suit of Fortune","Trousers of Fortune",
-    "Golden Chains of Fortune","Cloak of Fortune","Gaze of Rage","Rage Filled Chains","Fighter Wrist Bands","Dark Cotton Trousers",
-    "Dark Puffy Trousers","Long Puff Jacket","Red Puff Jacket","Sleeveless Puff Jacket","Puffy Shorts","Blue Jade Neck Beads","Blue Jade Wrist Beads",
-    "Jade Neck Beads","Jade Wrist Beads"
-}
+
+--------------------------------------------------
+-- COMPLETE INVENTORY ITEM SOURCE
+-- 来源：items.txt
+--------------------------------------------------
+
+local INVENTORY_ITEM_SOURCE = [[
+Demon Finger
+Dimensional Finger
+Heian Relic
+Prison Realm Fragment
+Prison Realm
+Awakened Prison Realm
+Strongest Bottom Half
+Maximum Scroll
+Dimensional Maximum Scroll
+Domain Shard
+Purified Curse Hand
+Energy Nature Scroll
+Scroll of Overwhelming Cursed Energy
+Scroll of Demonic Hellstomp
+Scroll of Acid Spit
+Scroll of Mantis Kick
+Scroll of Golden Wind
+Snow Brigade Skill Scroll
+Sleigh Skill Scroll
+Healing Frost Skill Scroll
+Scroll of Absolute Zero
+Scroll of Lunar Strikes
+Scroll of Stampede
+Calamity Ward
+Infinity Piercing Vial
+Infinity Shield Vial
+Binding Chains
+Calamity Luck Vial
+Calamity Fortune Gourd
+Withered Calamity Eyeball
+Wooden Calamity Eyeball
+Polished Calamity Eyeball
+Golden Calamity Eyeball
+Dorayaki
+Takoyaki
+Damage Vial
+Focus Vial
+Agility Vial
+Luck Vial
+Health Vial
+Mastery Talisman
+Fortune Gourd
+Damage Gourd
+Focus Gourd
+Rage Gourd
+Withered Beckoning Cat
+Wooden Beckoning Cat
+Polished Beckoning Cat
+Golden Beckoning Cat
+White Lotus
+Sapphire Lotus
+Jade Lotus
+Iridescent Lotus
+Mastery Vial
+Mastery Scroll
+AFK Chest
+Exchange Chest
+Testing Exchange Voucher
+Premium Exchange Chest
+Feathered Spear
+Inverted Spear Of Heaven
+Winter Bell
+Playful Cloud
+Rusty Katana
+Iron Blade
+Purifying Dagger
+Executioner Sword
+Infinity Shard
+Copy
+Copy Katana
+Vengeance
+Jet Black
+Dragon Bone
+Blood Sword
+Ravenous Axe
+Split Soul
+Slaughter Demon
+Viscera Scythe
+Electric Staff
+Inventory Curse
+Rot Heart
+Effigy Nail
+Curse Flesh
+Eerie Metal Ingot
+Cursed Alloy Ingot
+Blood Steel Ingot
+Cursebloom
+Spring Puff
+Frost Petal
+Eerie Powder
+Cursed Log
+Ruin Shard
+Magma Shard
+Cracked Stone
+Bonsai Wood
+Golem Totem
+Heavenly Chains
+Cursed Fragment
+Cursed Tentacle
+Transfigured Human
+Volcanic Ash
+Demon Blob
+Mantis Arm
+Egg Jaw Eyeball
+Monk Beads
+Paper Talisman
+Cursed School Key
+Yasohachi Bridge Key
+Tokyo Subway Key
+Eerie Farm Key
+Detention Center Key
+Cursed Spine
+Cursed Eyes
+Cursed Skull
+Cursed Legs
+Cursed Heart
+Blood Beam Fragment
+Swap Onslaught Fragment
+Projection Execution Fragment
+Cargo Barrage Fragment
+Mission Essence
+Exorcise Essence
+Curse User Essence
+Destroy Essence
+Investigate Essence
+Star Plasma Essence
+Capture Essence
+Black Hakama
+Black Shirt
+Gray Shirt
+White Button Up Shirt
+Black Button Up Shirt
+Purple Pants
+Midnight Button Up Shirt
+Brown Shirt
+Blue Jeans
+Teal Button Up Shirt
+Blue Shirt
+Military Jeans
+Red Shirt
+Orange Shirt
+Orange Pants
+Peach Shirt
+Peach Pants
+Cargo Pants
+Black Beanie
+Copper Ring
+Daylight Hakama
+Midnight Hakama
+Black Techsuit
+Silver Techsuit
+Zen Jacket
+Zen Pants
+Bandana
+Iron Ring
+Sorcerer Jacket
+Sorcerer Jumpskirt
+Sorcerer Pants
+Black Suit
+Black Pants
+Onyx Techsuit
+Cryo Techsuit
+Sakura Hakama
+Cursed Jacket
+Sapphire Jacket
+Sapphire Pants
+Baseball Cap
+Eyepatch
+Green Haori
+Beige Ronin Tunic
+Violet Ronin Tunic
+Beige Tobi
+White Tobi
+White Ronin Tunic
+Snow White Nagagi
+Black Ronin Tunic
+Red Haori
+Black Tobi
+Silver Ring
+Vow of Impact
+Vow of Justice
+Vow of Red Reflection
+Vow of the Unbreakable
+Vow of Ceaseless Slashes
+Vow of Spatial Pulverize
+Vow of Snow Grave
+Vow of Swap Onslaught
+Vow of Blood Beam
+Magma Jacket
+Magma Pants
+Obsidian Jacket
+Obsidian Pants
+Ninja Headband
+Headphones
+Overflowing Ring
+Powerful Ring
+Venom Ring
+Ring of Fragility
+Focusing Ring
+Tactful Ring
+Dusk Hakama
+Heian Era Robe
+Heian Era Pants
+Hazard Techsuit
+Rust Techsuit
+Vest Of Ruin
+Rot Cleanser
+Spring Patterned Haori
+Crimson Patterned Haori
+Garment of Balance
+Deep Assassin Garment
+Dark Patterned Haori
+Garment of The Stars
+Ocean Jacket
+Soul Stitched Pants
+Soul Face Stitches
+Soul Ring
+Molten Ring
+Resonating Eyepatch
+Volcano Pants
+Blessed Scarf
+Demon Face
+Demonic Tobi
+Demonic Robe
+Soul Robe
+Overtime Suit
+Overtime Trousers
+Special-Grade Sorcerer Jacket
+Special-Grade Sorcerer Jumpskirt
+Special-Grade Sorcerer Pants
+Ring of Thorns
+Rotten Ring
+Enlightenment Beads
+Sorcerer Killer Pants
+Heavenly Black Shirt
+Ocean Blue Sailor's Vest
+Deep Black Sailor's Vest
+Cloak of Inferno
+Violet Tobi
+Violet Patterned Haori
+Waves Patterned Haori
+Orange Haori
+Brown Haori
+Night Grey Nagagi
+Grey Hakama
+Dark Hakama
+Red High Skirt
+White High Skirt
+Grey High Skirt
+Beige Ronin Pants
+White Ronin Pants
+Black Ronin Pants
+Camo Tech Hoodie
+Red Patterned Hoodie
+Expedition Scout Jacket
+A Sinner's Cloak
+Blood Red Jacket
+Blood Red Pants
+A Sinner's Suit
+A Sinner's Trousers
+Perception Blocking Mask
+The Impossible Dream
+Eyes of Insight
+Bloodthirsty Kimono
+Bloodthirsty Hakama
+Wise Man's Kimono
+Wise Man's Hakama
+Eyes of Bloodthirst
+Eyes of Willpower
+Rotten Chains
+Hard Boiled Prisoner Shirt
+Hard Boiled Prisoner Pants
+Candy Cane
+Title: Snow Angel
+Title: Winter 2025
+Festive Top
+Festive Pants
+Festive Hat
+Dark Tang Suit
+Scale Patterned Trousers
+Patterned Tang Suit
+Gilded Patterned Trousers
+Floral Tang Suit
+Dark Patterned Trousers
+Red Suit of Good Luck
+Red Trousers of Good Luck
+Lunar New Years Cloak
+Red Mask of The Snake
+Black Mask of The Snake
+Title: Lunar New Year 2025
+Dumplings
+Snake Charm
+Snake Talisman
+Lunar Fireworks
+Red Envelope
+Pumpkin Reaper Robe
+Pumpkin Reaper Pants
+Pumpkin Reaper's Head
+Hallowed Scythe
+Ghost Robe
+Ghost Pants
+Title: Halloween 2025
+Title: Hallowed One
+Candy
+Halloween Chest
+Cursed Treat
+Hallowed Treat
+Halloween Fireworks
+Frosted Coat
+Frosted Leggings
+Halo of Frost
+Ring of Frost
+Twin Cryoblasters
+Title: Winter 2026
+Title: Frost Slayer
+Title: Ice Exorcist
+Title: Krampus Slayer
+Title: Winter's End
+Frost Essence
+Winter Chest
+Lucky Candy Cane
+Lucky Peppermint
+Lunar Soldier's Armor
+Lunar Soldier's Greaves
+Lunar Soldier's Cone Hat
+Eye of the Fire Horse
+Spear of the Impaler
+Horse Talisman
+Title: Lunar Flames
+Title: Lunar Farewell
+Title: Lunar Sorcerer
+Title: Nian Exorcist
+Lucky Bao
+Purple Envelope
+Red Envelope 2026
+Suit of Fortune
+Trousers of Fortune
+Golden Chains of Fortune
+Cloak of Fortune
+Gaze of Rage
+Rage Filled Chains
+Fighter Wrist Bands
+Dark Cotton Trousers
+Dark Puffy Trousers
+Long Puff Jacket
+Red Puff Jacket
+Sleeveless Puff Jacket
+Puffy Shorts
+Blue Jade Neck Beads
+Blue Jade Wrist Beads
+Jade Neck Beads
+Jade Wrist Beads
+Gaze of Power
+High Ranking Sorcerer's Hakama
+High Ranking Sorcerer's Top
+Sorcerer General's Top
+Sorcerer General's Hakama
+Adventurer's Top
+Adventurer's Bottom
+Checkered Kimono
+Savage Tiger Slayer's Coat
+Savage Tiger Slayer's Top
+Savage Tiger Slayer's Bottom
+Fighter Monk's Top
+Fighter Monk's Bottom
+Slayer's Top
+Slayer's Bottom
+Flashy Kimono
+Flashy Slayer's Top
+Flashy Slayer's Bottom
+Hare Beast's Top
+Hare Beast's Bottom
+Hare Beast's Hat
+Ring of Hares
+Ring of Snakes
+Ring of Roosters
+Winged Tiger's Ring
+Cleanup Crew Battery Pack
+White Lion's Mane
+Cleanup Crew Top
+Cleanup Crew Bottom
+Flow State
+Lime T-Shirt of Legend
+Dark Green Trousers of Legend
+Title: The Egoist
+Title: The Red Mist
+Title: The Black Silence
+Title: Casino Fighter
+Title: Crowd Favorite
+Title: Money Maker
+Title: Seasoned Sorcerer
+Title: Farmer Era Sorcerer
+Title: Eternal
+Title: Without Limits
+Title: Monarch
+Title: True King
+Title: Unchained
+Title: The Strongest
+Title: King of Curses
+Title: Queen of Curses
+Title: Prince of Sparks
+Title: The Ultimate Being
+Title: Restless Gambler
+Title: The Singularity
+Title: Beyond Human
+Title: Fastest Sorcerer
+Title: Cursed Rose
+Title: Volcano Head
+Title: The Abyss
+Title: Judicial Prodigy
+Title: Cursed Architect
+Title: God of Lightning
+Title: 7:3 Sorcerer
+Title: Salmon Roe
+Title: Blood Reaper
+Title: Voodooist
+Title: Ice Chef
+Title: The Exception
+Title: Heart of Fire
+Title: The Witch
+Title: Constructor
+Title: Shadow Ninja
+Title: Infinite Sorcerer
+Title: Diamond Sorcerer
+Title: Gold Sorcerer
+Title: Silver Sorcerer
+Title: Bronze Sorcerer
+Title: Fighter
+Title: Cog
+Title: Killer
+Title: Battleworn
+Title: Warrior
+Title: Champion
+Title: Brawler
+Title: Battle Crazy
+Title: Warlord
+Title: Martial Demon
+Title: King of Fighters
+Lobotomy Volcano Cape
+Bloody Black Cape
+Strongest Hat
+Jujutsu Society Executioner Top
+Jujutsu Society Executioner Bottom
+Blood Stained Beads
+Blood Stained Neck Beads
+Martial Fighter's Haori
+Martial Fighter's Tobi
+Lord's Gaze
+Heian Gauntlet
+Spiked Gauntlet
+Twin Kusarigama
+Turbo Mask
+Title: Finger Collector
+Title: El Finger
+Title: go outside
+Title: please touch grass
+Title: Heian Spirit
+Title: Heian Angel
+Title: Heian Demon
+Title: Heian Centimillionaire
+Title: Heian Multimillionaire
+Title: Heian Millionaire
+Title: Domain Master
+Title: Lord of Domains
+Title: God of Domains
+Title: Maximum Master
+Title: Maximum Overdrive
+Title: Maximum Merchant
+Title: Heian Era Sorcerer
+Title: lab rat
+Title: Jujutsu IRS
+Title: Jujutsu CIA
+Dark Heian Robe
+Dark Heian Pants
+Title: Divine Heian Sorcerer
+Title: Nah I'd Win
+Title: Stand Proud
+Lobotomy Volcano
+Title: The Fraudulent One
+Scarf of The Chosen
+Golden Haori
+Title: Release Festival
+Release Party Hat
+Title: 1 Year Anniversary
+Title: King of Souls
+Infinity Piercer
+Sword of Lapse Blue
+Sword of Reversal Red
+Hollow Sword
+Title: The Calamity
+Title: The Chains of Calamity
+Title: Exchange Student
+Title: Exchange Champion
+Title: Exchange Tester
+Title: Mugen Piercer
+Title: Cataclysmic Rift
+Fragment of Lapse
+Fragment of Reversal
+Phantasis
+Helkytis
+Dynesis
+Aetherion
+Crown of Azure
+Crown of Crimson
+The Imaginary King
+Celestia
+Ragna
+Impera
+Nascent Cosmic Scarf
+Nascent Cosmic Cloak
+Blackhole Buddy
+Title: The Judge
+Title: Content Creator
+Innate Slot 3
+Innate Slot 4
+Innate Bag
+Skip Spins
+Emote Slots
+Item Notifier
+Heavenly Restriction
+10 Spins
+50 Spins
+100 Spins
+250 Spins
+500 Spins
+1000 Spins
+Premium Battlepass
+2X EXP 15 Minutes
+2X EXP 1 Hour
+2X EXP 6 Hours
+2X EXP 12 Hours
+2X Mastery 15 Minutes
+2X Mastery 1 Hour
+2X Mastery 6 Hours
+2X Mastery 12 Hours
+2X Cash 15 Minutes
+2X Cash 1 Hour
+2X Cash 6 Hours
+2X Cash 12 Hours
+]]
+
+--------------------------------------------------
+-- ITEM LIST STATE
+--------------------------------------------------
+
+local INVENTORY_ITEM_NAMES = {}
+
+local function parseInventoryItemSource(source)
+    local result = {}
+    local seen = {}
+
+    for rawName in (tostring(source) .. "\n"):gmatch("(.-)\n") do
+        local itemName = rawName
+            :gsub("\r", "")
+            :gsub("^%s+", "")
+            :gsub("%s+$", "")
+
+        if itemName ~= "" and not seen[itemName] then
+            seen[itemName] = true
+            table.insert(result, itemName)
+        end
+    end
+
+    return result
+end
+
+INVENTORY_ITEM_NAMES = parseInventoryItemSource(
+    INVENTORY_ITEM_SOURCE
+)
 
 local STATUS_SOURCE = [[
-DestroyEverything|UnstableSoul|ShieldCounter|InfinityShield|SuperSenses|Garuda|Lodged|Transfigured
-Soul King Spiteful Blows Detonation|thirdDash|secondDash|firstDash|Overtime|Ratioed|NoBlackFlash|StartedRushing
-IsBoss|TurretsOn|24FPS|BiggestHitbox|DontStop|TwentyFourFPS|airCombo|FreezeFrameCD|FreezeFrame|CursedFlowers
-RootStack|Weakness|Stationary|FBFFocusGain|GavelBound|Fragile|IronWall|Infinity|DomainUser|PreventTeleport
-InDomain|RevealOnesHand|HollowWickerBasket|InSimpleDomain|PseudoParried|SuccessfulParry|HeavyCooldown
-HealingFrost|VisualCut|Frozen|RushHeavyCD|Rushed|NoStun|AngelRCTHealing|AngelDefense|ElectricStun
-CustomLighting|DisableSkydive|TrueIframes|CantBring|CastedDomain|DimensionalFury|NoMovement|SukunaControlled
-Slowness|Bleeding|Burning|DemonBloodStack|VentCooldown|Venting|VentBuff|MegaphoneSpeech|CurseReinforcement
-GettingTendriled|SixEyes|HeianAwaken|M1Combo|Comboing|BeingAttacked|RikaSummoned|InCutscene|Ragdolled
-ExchangeInvader|Kyoto|CloneMirage|NoRush|Untargetable|Turbo|HideStatusFX|NoReturn|Locked|Parried|CDDecrease
-Strength|TrueStun|HeartAblaze|Speed|BlockSlowed|Skydiving|UnyieldingAdvance|Flashstepping|Stunned|Flight
-Hyper Armor|Slowed|In Combat|BindingVowArmSacrifice|InsectArmor|Iframes
+DestroyEverything
+UnstableSoul
+ShieldCounter
+InfinityShield
+SuperSenses
+Garuda
+Lodged
+Transfigured
+Soul King Spiteful Blows Detonation
+thirdDash
+secondDash
+firstDash
+Overtime
+Ratioed
+NoBlackFlash
+StartedRushing
+IsBoss
+TurretsOn
+24FPS
+BiggestHitbox
+DontStop
+TwentyFourFPS
+airCombo
+FreezeFrameCD
+FreezeFrame
+CursedFlowers
+RootStack
+Weakness
+Stationary
+FBFFocusGain
+GavelBound
+Fragile
+IronWall
+Infinity
+DomainUser
+PreventTeleport
+InDomain
+RevealOnesHand
+HollowWickerBasket
+InSimpleDomain
+PseudoParried
+SuccessfulParry
+HeavyCooldown
+HealingFrost
+VisualCut
+Frozen
+RushHeavyCD
+Rushed
+NoStun
+AngelRCTHealing
+AngelDefense
+ElectricStun
+CustomLighting
+DisableSkydive
+TrueIframes
+CantBring
+CastedDomain
+DimensionalFury
+NoMovement
+SukunaControlled
+Slowness
+Bleeding
+Burning
+DemonBloodStack
+VentCooldown
+Venting
+VentBuff
+MegaphoneSpeech
+CurseReinforcement
+GettingTendriled
+SixEyes
+HeianAwaken
+M1Combo
+Comboing
+BeingAttacked
+RikaSummoned
+InCutscene
+Ragdolled
+ExchangeInvader
+Kyoto
+CloneMirage
+NoRush
+Untargetable
+Turbo
+HideStatusFX
+NoReturn
+Locked
+Parried
+CDDecrease
+Strength
+TrueStun
+HeartAblaze
+Speed
+BlockSlowed
+Skydiving
+UnyieldingAdvance
+Flashstepping
+Stunned
+Flight
+Hyper Armor
+Slowed
+In Combat
+BindingVowArmSacrifice
+InsectArmor
+Iframes
+Notification
+CrimsonFavor
+HollowCore
+HollowParry
+ImaginaryAether
+VoidSanction
+RedFragment
+Festive2
+AzureFavor
+CursedHunger
+Shatterpoint
+Festive3
+GoldenExperience2
+FrostCoating
+EarthlyBranches
+GoldenExperience1
+VowOfSnowGrave
+EtherSense
+SnakebiteSurge
+VowOfBloodBeam
+VowOfCeaselessSlashes
+VowOfSwapOnslaught
+Festive1
+LeapingFortune
+ReaperMomentum
+PerfectHarvest
+FrozenFocus
+VowOfSpatialPulverize
+BurningFist
+FlashFreeze
+FlowingFire
+CDDebug
+ReversalEngine
+BlueFragment
+AzureFists
+KingsDomain
+PactOfInsight
+GravityWell
+KokusenI
+CosmicMomentum
+Resistant
+BossResistant
+Exorcist
+InfernalAura
+Focused
+HeishouSnake
+Kokusen
+HeishouHare
+Fortunate4
+BossHunter
+TrueSight
+HeishouRooster
+WhiteLion
+Berserker
+CurseOfTheBloodthirsty
+Fortunate1
+Fortunate3
+Generous
+WingedTiger
+Ninja
+BatteryPack
+Fortunate2
+SpeedyTrial
+VowOfRed
+VowOfTheUnbreakable
+SoulResonance
+VowOfImpact
+LivingOnTheEdge
+RotCurse
+AbyssalCurse
+OvertimeVow
+ThornCurse
+PerceptionBlock
+
+Lucky1
+Blessed
+ExplosiveRush
+VenomStrike
+ViolentTendency
+FocusMerchant
+Resonance
+LuckyPeppermint
+LuckyBao
+LuckyCandyCane
+HallowedTreat
+SECFortuneGourd
+SECFortuneGourdChest
+SnakeCharm
+FortuneGourd
+FortuneGourdChest
+PurpleEnvelope
+RageGourd
+Dumplings
+CursedTreat
+DamageGourd
+FocusGourd
+SECLuckVial
+AgilityVial
+LuckVial
+FocusVial
+DamageVial
 ]]
 
 local scannedStatuses = {}
 local statusRowMap = {}
 local currentStatusSearchText = ""
 
-for rawName in STATUS_SOURCE:gmatch("[^|\r\n]+") do
-    local statusName = rawName:gsub("^%s+", ""):gsub("%s+$", "")
-    if statusName ~= "" then
-        table.insert(scannedStatuses, {
-            name = statusName
-        })
+local emptyPlaceholderInserted = false
+local previousWasPerceptionBlock = false
+
+for rawLine in (
+    tostring(STATUS_SOURCE):gsub("\r\n", "\n")
+    .. "\n"
+):gmatch("(.-)\n") do
+    local statusName = rawLine:gsub("\r", "")
+
+    if statusName == "" then
+        -- 只保留 PerceptionBlock 与 Lucky1 中间的真实空位符。
+        -- 不把字符串开头/结尾产生的空行误当成额外 Status。
+        if previousWasPerceptionBlock
+            and not emptyPlaceholderInserted
+        then
+            table.insert(scannedStatuses, {
+                name = "",
+                isEmptyPlaceholder = true
+            })
+
+            emptyPlaceholderInserted = true
+        end
+    else
+        statusName = statusName
+            :gsub("^%s+", "")
+            :gsub("%s+$", "")
+
+        if statusName ~= "" then
+            table.insert(scannedStatuses, {
+                name = statusName,
+                isEmptyPlaceholder = false
+            })
+
+            previousWasPerceptionBlock =
+                statusName == "PerceptionBlock"
+        end
     end
 end
 
 table.sort(scannedStatuses, function(a, b)
-    return string.lower(a.name) < string.lower(b.name)
-end)
-
-local STATUS_SOURCE = [[
-DestroyEverything|UnstableSoul|ShieldCounter|InfinityShield|SuperSenses|Garuda|Lodged|Transfigured
-Soul King Spiteful Blows Detonation|thirdDash|secondDash|firstDash|Overtime|Ratioed|NoBlackFlash|StartedRushing
-IsBoss|TurretsOn|24FPS|BiggestHitbox|DontStop|TwentyFourFPS|airCombo|FreezeFrameCD|FreezeFrame|CursedFlowers
-RootStack|Weakness|Stationary|FBFFocusGain|GavelBound|Fragile|IronWall|Infinity|DomainUser|PreventTeleport
-InDomain|RevealOnesHand|HollowWickerBasket|InSimpleDomain|PseudoParried|SuccessfulParry|HeavyCooldown
-HealingFrost|VisualCut|Frozen|RushHeavyCD|Rushed|NoStun|AngelRCTHealing|AngelDefense|ElectricStun
-CustomLighting|DisableSkydive|TrueIframes|CantBring|CastedDomain|DimensionalFury|NoMovement|SukunaControlled
-Slowness|Bleeding|Burning|DemonBloodStack|VentCooldown|Venting|VentBuff|MegaphoneSpeech|CurseReinforcement
-GettingTendriled|SixEyes|HeianAwaken|M1Combo|Comboing|BeingAttacked|RikaSummoned|InCutscene|Ragdolled
-ExchangeInvader|Kyoto|CloneMirage|NoRush|Untargetable|Turbo|HideStatusFX|NoReturn|Locked|Parried|CDDecrease
-Strength|TrueStun|HeartAblaze|Speed|BlockSlowed|Skydiving|UnyieldingAdvance|Flashstepping|Stunned|Flight
-Hyper Armor|Slowed|In Combat|BindingVowArmSacrifice|InsectArmor|Iframes
-]]
-
-local scannedStatuses = {}
-local statusRowMap = {}
-local currentStatusSearchText = ""
-
-for rawName in STATUS_SOURCE:gmatch("[^|\r\n]+") do
-    local statusName = rawName:gsub("^%s+", ""):gsub("%s+$", "")
-    if statusName ~= "" then
-        table.insert(scannedStatuses, {
-            name = statusName
-        })
+    if type(a) ~= "table" then
+        return false
     end
-end
 
-table.sort(scannedStatuses, function(a, b)
-    return string.lower(a.name) < string.lower(b.name)
+    if type(b) ~= "table" then
+        return true
+    end
+
+    local aName = type(a.name) == "string"
+        and a.name
+        or ""
+
+    local bName = type(b.name) == "string"
+        and b.name
+        or ""
+
+    -- 真实空位符固定放在列表最前面。
+    if a.isEmptyPlaceholder == true
+        and b.isEmptyPlaceholder ~= true
+    then
+        return true
+    end
+
+    if a.isEmptyPlaceholder ~= true
+        and b.isEmptyPlaceholder == true
+    then
+        return false
+    end
+
+    return string.lower(aName)
+        < string.lower(bName)
 end)
 
 local masteryBoostEnabled = true
@@ -1809,18 +2527,33 @@ end
 
 function getFilteredStatuses()
     local result = {}
-    local keyword = string.lower(currentStatusSearchText or "")
+    local keyword = string.lower(
+        tostring(currentStatusSearchText or "")
+    )
 
     for _, statusData in ipairs(scannedStatuses) do
-        if keyword == ""
-            or string.find(
-                string.lower(statusData.name),
-                keyword,
-                1,
-                true
-            )
+        if type(statusData) == "table"
+            and type(statusData.name) == "string"
         then
-            table.insert(result, statusData)
+            local searchableName
+
+            if statusData.name == "" then
+                searchableName = "[空位符]"
+            else
+                searchableName =
+                    string.lower(statusData.name)
+            end
+
+            if keyword == ""
+                or string.find(
+                    string.lower(searchableName),
+                    keyword,
+                    1,
+                    true
+                )
+            then
+                table.insert(result, statusData)
+            end
         end
     end
 
@@ -1901,6 +2634,55 @@ function giveItemToInventory(itemName)
     end
 
     value.Value = value.Value + 1
+    return true
+end
+
+--------------------------------------------------
+-- 刷新客户端 Inventory 显示
+--------------------------------------------------
+function fireInventoryTableChanged()
+    local lp = Players.LocalPlayer
+
+    if not lp then
+        return false, "未找到 LocalPlayer"
+    end
+
+    local replicatedData =
+        lp:FindFirstChild("ReplicatedData")
+
+    if not replicatedData then
+        return false, "未找到 ReplicatedData"
+    end
+
+    local tableChanged =
+        replicatedData:FindFirstChild("TableChanged")
+
+    if not tableChanged then
+        return false, "未找到 ReplicatedData.TableChanged"
+    end
+
+    local inventory =
+        replicatedData:FindFirstChild("inventory")
+
+    if not inventory then
+        return false, "未找到 ReplicatedData.inventory"
+    end
+
+    if type(firesignal) ~= "function" then
+        return false, "当前执行器不支持 firesignal"
+    end
+
+    local ok, err = pcall(function()
+        firesignal(
+            tableChanged.OnClientEvent,
+            inventory
+        )
+    end)
+
+    if not ok then
+        return false, tostring(err)
+    end
+
     return true
 end
 
@@ -2819,21 +3601,52 @@ function scanInventoryItems()
     table.clear(scannedInventoryItems)
     table.clear(inventoryItemMap)
 
+    local seen = {}
+
     for _, itemName in ipairs(INVENTORY_ITEM_NAMES) do
-        local data = { name = itemName }
-        table.insert(scannedInventoryItems, data)
-        inventoryItemMap[itemName] = data
+        if type(itemName) == "string"
+            and itemName ~= ""
+            and not seen[itemName]
+        then
+            seen[itemName] = true
+
+            local data = {
+                name = itemName
+            }
+
+            table.insert(scannedInventoryItems, data)
+            inventoryItemMap[itemName] = data
+        end
     end
 
-    print("[Inventory] 条目加载完成，共 " .. tostring(#scannedInventoryItems) .. " 个物品")
+    table.sort(scannedInventoryItems, function(a, b)
+        return string.lower(a.name) < string.lower(b.name)
+    end)
+
+    print(
+        "[Inventory] 条目加载完成，共 "
+        .. tostring(#scannedInventoryItems)
+        .. " 个物品"
+    )
 end
 
 function getFilteredInventoryItems()
     local result = {}
-    local keyword = string.lower(currentInventorySearchText or "")
+    local keyword = string.lower(
+        tostring(currentInventorySearchText or "")
+    )
 
     for _, itemData in ipairs(scannedInventoryItems) do
-        if keyword == "" or string.find(string.lower(itemData.name), keyword, 1, true) then
+        local itemName = tostring(itemData.name or "")
+
+        if keyword == ""
+            or string.find(
+                string.lower(itemName),
+                keyword,
+                1,
+                true
+            )
+        then
             table.insert(result, itemData)
         end
     end
@@ -2894,13 +3707,18 @@ function formatStatusValue(value)
 end
 
 function toggleCharacterStatus(statusName, rawValue)
-    if type(statusName) ~= "string" or statusName == "" then
-        return false, "invalid_name", "状态名无效"
+    if type(statusName) ~= "string" then
+        return false,
+            "invalid_name",
+            "状态名必须是字符串"
     end
 
     local statuses = getCharacterStatusesFolder()
+
     if not statuses then
-        return false, "missing_folder", "未找到 Statuses"
+        return false,
+            "missing_folder",
+            "未找到 Statuses"
     end
 
     --------------------------------------------------
@@ -2913,9 +3731,15 @@ function toggleCharacterStatus(statusName, rawValue)
             if child:IsA("NumberValue") then
                 table.insert(matchingStatuses, child)
             else
+                local shownName =
+                    statusName == ""
+                    and "[空位符]"
+                    or statusName
+
                 return false,
                     "wrong_type",
-                    statusName .. " 已存在且不是 NumberValue"
+                    shownName
+                    .. " 已存在且不是 NumberValue"
             end
         end
     end
@@ -2925,45 +3749,46 @@ function toggleCharacterStatus(statusName, rawValue)
             statusObject:Destroy()
         end
 
-        return true, "removed", #matchingStatuses
+        return true,
+            "removed",
+            #matchingStatuses
     end
 
     --------------------------------------------------
-    -- 不存在：按输入值创建
+    -- 不存在：创建 NumberValue
     --------------------------------------------------
     local statusValue = quantizeStatusValue(rawValue)
 
     if statusValue == nil then
-        return false, "invalid_value", "数值无效"
+        return false,
+            "invalid_value",
+            "数值无效"
     end
 
-    local statusObject = Instance.new("NumberValue")
-    statusObject.Name = statusName
-    statusObject.Value = statusValue
-    statusObject.Parent = statuses
+    local createOk, statusObjectOrError = pcall(function()
+        local statusObject = Instance.new("NumberValue")
 
-    return true, "added", statusValue
-end
+        -- 允许空字符串 Name
+        statusObject.Name = statusName
+        statusObject.Value = statusValue
+        statusObject.Parent = statuses
 
-function getFilteredStatuses()
-    local result = {}
-    local keyword = string.lower(currentStatusSearchText or "")
+        return statusObject
+    end)
 
-    for _, statusData in ipairs(scannedStatuses) do
-        if keyword == ""
-            or string.find(
-                string.lower(statusData.name),
-                keyword,
-                1,
-                true
-            )
-        then
-            table.insert(result, statusData)
-        end
+    if not createOk then
+        return false,
+            "create_failed",
+            tostring(statusObjectOrError)
     end
 
-    return result
+    return true,
+        "added",
+        statusValue
 end
+
+
+
 --------------------------------------------------
 -- SKILL SCAN
 --------------------------------------------------
@@ -5528,8 +6353,8 @@ statusValueBox.TextColor3 = COLOR_BLACK
 statusValueBox.ClearTextOnFocus = false
 statusValueBox.Font = Enum.Font.Gotham
 statusValueBox.TextSize = 12
-statusValueBox.Text = "30"
-statusValueBox.PlaceholderText = "30"
+statusValueBox.Text = "99999999"
+statusValueBox.PlaceholderText = "99999999"
 statusValueBox.Parent = statusBottomFrame
 
 local statusValueCorner = Instance.new("UICorner")
@@ -5539,11 +6364,11 @@ statusValueCorner.Parent = statusValueBox
 statusValueBox.FocusLost:Connect(function()
     local value = quantizeStatusValue(statusValueBox.Text)
 
-    if value == nil then
-        statusValueBox.Text = "30"
-    else
-        statusValueBox.Text = formatStatusValue(value)
-    end
+if value == nil then
+    statusValueBox.Text = "99999999"
+else
+    statusValueBox.Text = formatStatusValue(value)
+end
 end)
 
     -- 缩放手柄
@@ -5624,21 +6449,89 @@ end)
 
     setTab("Skills")
 
-    local function handleInventoryAddAll()
+local function handleInventoryAddAll()
+    if not inventoryAddAllBtn.Active then
+        return
+    end
+
     inventoryAddAllBtn.Active = false
     inventoryAddAllBtn.Text = "正在添加..."
-    inventoryAddAllBtn.BackgroundColor3 = COLOR_MEDIUM_GRAY
+    inventoryAddAllBtn.BackgroundColor3 =
+        COLOR_MEDIUM_GRAY
 
     task.spawn(function()
+        local addedCount = 0
+        local failedCount = 0
+
         for _, itemData in ipairs(scannedInventoryItems) do
-            giveItemToInventory(itemData.name)
+            local itemName =
+                type(itemData) == "table"
+                and itemData.name
+                or nil
+
+            if type(itemName) == "string"
+                and itemName ~= ""
+            then
+                local ok =
+                    giveItemToInventory(itemName)
+
+                if ok then
+                    addedCount += 1
+                else
+                    failedCount += 1
+                end
+            else
+                failedCount += 1
+                warn(
+                    "[Inventory] 跳过无效 Item:",
+                    itemData
+                )
+            end
+
             task.wait(0.02)
         end
 
+        --------------------------------------------------
+        -- 批量添加结束后只刷新一次
+        --------------------------------------------------
+        local refreshOk, refreshError =
+            fireInventoryTableChanged()
+
+        if not refreshOk then
+            warn(
+                "[Inventory] 批量刷新 TableChanged 失败:",
+                refreshError
+            )
+        end
+
+        task.delay(0.05, function()
+            if inventoryAddAllBtn
+                and inventoryAddAllBtn.Parent
+            then
+                inventoryAddAllBtn.Text =
+                    string.format(
+                        "完成 %d / 失败 %d",
+                        addedCount,
+                        failedCount
+                    )
+
+                inventoryAddAllBtn.BackgroundColor3 =
+                    addedCount > 0
+                    and COLOR_SUCCESS
+                    or COLOR_RED
+            end
+        end)
+
         task.delay(0.8, function()
-            if inventoryAddAllBtn and inventoryAddAllBtn.Parent then
-                inventoryAddAllBtn.Text = "添加全部物品"
-                inventoryAddAllBtn.BackgroundColor3 = COLOR_BTN_BG
+            if inventoryAddAllBtn
+                and inventoryAddAllBtn.Parent
+            then
+                inventoryAddAllBtn.Text =
+                    "添加全部物品"
+
+                inventoryAddAllBtn.BackgroundColor3 =
+                    COLOR_BTN_BG
+
                 inventoryAddAllBtn.Active = true
             end
         end)
@@ -6492,9 +7385,24 @@ end)
 end
 
 local function createInventoryRow(ui, itemData, order)
+    if type(itemData) ~= "table"
+        or type(itemData.name) ~= "string"
+        or itemData.name == ""
+    then
+        warn(
+            "[Inventory] 跳过无效条目:",
+            itemData
+        )
+        return
+    end
+
+    local itemName = itemData.name
+
     local rowFrame = Instance.new("Frame")
-    rowFrame.Name = "InventoryRow_" .. itemData.name
-    rowFrame.Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT)
+    rowFrame.Name = "InventoryRow_" .. itemName
+    rowFrame.Size = UDim2.new(
+        1, 0, 0, BUTTON_HEIGHT
+    )
     rowFrame.BackgroundTransparency = 1
     rowFrame.LayoutOrder = order
     rowFrame.Parent = ui.InventoryScrollFrame
@@ -6506,36 +7414,85 @@ local function createInventoryRow(ui, itemData, order)
     nameButton.TextColor3 = COLOR_WHITE
     nameButton.Font = Enum.Font.Gotham
     nameButton.TextSize = 12
-    nameButton.TextXAlignment = Enum.TextXAlignment.Left
+    nameButton.TextXAlignment =
+        Enum.TextXAlignment.Left
     nameButton.AutoButtonColor = false
-    nameButton.Text = "  " .. itemData.name
+    nameButton.Text = "  " .. itemName
     nameButton.Parent = rowFrame
 
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 4)
     corner.Parent = nameButton
 
-    nameButton.MouseButton1Click:Connect(function()
-        local ok = giveItemToInventory(itemData.name)
-        nameButton.Text = ok and ("  已入库: " .. itemData.name) or ("  入库失败: " .. itemData.name)
-        nameButton.BackgroundColor3 = ok and COLOR_SUCCESS or COLOR_RED
-        task.delay(0.7, function()
-            if nameButton and nameButton.Parent then
-                nameButton.Text = "  " .. itemData.name
-                nameButton.BackgroundColor3 = COLOR_BTN_BG
-            end
-        end)
-    end)
+nameButton.MouseButton1Click:Connect(function()
+    local ok = giveItemToInventory(itemName)
 
-    inventoryRowMap[itemData.name] = {
+    if ok then
+        -- 单个添加成功后刷新一次客户端库存
+        local refreshOk, refreshError =
+            fireInventoryTableChanged()
+
+        if not refreshOk then
+            warn(
+                "[Inventory] TableChanged 刷新失败:",
+                refreshError
+            )
+        end
+
+        nameButton.Text =
+            "  已入库: " .. itemName
+
+        nameButton.BackgroundColor3 =
+            COLOR_SUCCESS
+    else
+        nameButton.Text =
+            "  入库失败: " .. itemName
+
+        nameButton.BackgroundColor3 =
+            COLOR_RED
+    end
+
+    task.delay(0.7, function()
+        if nameButton and nameButton.Parent then
+            nameButton.Text = "  " .. itemName
+            nameButton.BackgroundColor3 =
+                COLOR_BTN_BG
+        end
+    end)
+end)
+
+    inventoryRowMap[itemName] = {
         RowFrame = rowFrame,
         NameButton = nameButton,
         ItemData = itemData
     }
 end
 local function createStatusRow(ui, statusData, order)
+    -- 防止异常数据进入 UI
+    if type(statusData) ~= "table" then
+        warn("[Status] createStatusRow 收到无效数据:", statusData)
+        return
+    end
+
+    local statusName = statusData.name
+
+    if type(statusName) ~= "string" then
+        warn("[Status] Status 名称不是字符串:", statusName)
+        return
+    end
+
+    -- 空字符串是真实存在的 Status，只在 UI 中显示成可识别文字。
+    local displayName =
+        statusName == ""
+        and "[空位符]"
+        or statusName
+
     local rowFrame = Instance.new("Frame")
-    rowFrame.Name = "StatusRow_" .. statusData.name
+    rowFrame.Name =
+        statusName == ""
+        and "StatusRow_EmptyPlaceholder"
+        or ("StatusRow_" .. statusName)
+
     rowFrame.Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT)
     rowFrame.BackgroundTransparency = 1
     rowFrame.LayoutOrder = order
@@ -6550,7 +7507,7 @@ local function createStatusRow(ui, statusData, order)
     nameButton.TextSize = 12
     nameButton.TextXAlignment = Enum.TextXAlignment.Left
     nameButton.AutoButtonColor = false
-    nameButton.Text = "  " .. statusData.name
+    nameButton.Text = "  " .. displayName
     nameButton.Parent = rowFrame
 
     local corner = Instance.new("UICorner")
@@ -6558,52 +7515,72 @@ local function createStatusRow(ui, statusData, order)
     corner.Parent = nameButton
 
     nameButton.MouseEnter:Connect(function()
-        nameButton.BackgroundColor3 = COLOR_BTN_HOVER
+        if nameButton and nameButton.Parent then
+            nameButton.BackgroundColor3 = COLOR_BTN_HOVER
+        end
     end)
 
     nameButton.MouseLeave:Connect(function()
-        nameButton.BackgroundColor3 = COLOR_BTN_BG
-    end)
-
-nameButton.MouseButton1Click:Connect(function()
-    local ok, action, result = toggleCharacterStatus(
-        statusData.name,
-        ui.StatusValueBox.Text
-    )
-
-    if ok and action == "added" then
-        ui.StatusValueBox.Text = formatStatusValue(result)
-
-        nameButton.Text =
-            "  已添加: " ..
-            statusData.name ..
-            " = " ..
-            formatStatusValue(result)
-
-        nameButton.BackgroundColor3 = COLOR_SUCCESS
-    elseif ok and action == "removed" then
-        nameButton.Text =
-            "  已删除: " ..
-            statusData.name
-
-        nameButton.BackgroundColor3 = COLOR_RED
-    else
-        nameButton.Text =
-            "  操作失败: " ..
-            tostring(result)
-
-        nameButton.BackgroundColor3 = COLOR_RED
-    end
-
-    task.delay(0.8, function()
         if nameButton and nameButton.Parent then
-            nameButton.Text = "  " .. statusData.name
             nameButton.BackgroundColor3 = COLOR_BTN_BG
         end
     end)
-end)
 
-    statusRowMap[statusData.name] = {
+    nameButton.MouseButton1Click:Connect(function()
+        local valueText = "99999999"
+
+        if ui
+            and ui.StatusValueBox
+            and type(ui.StatusValueBox.Text) == "string"
+        then
+            valueText = ui.StatusValueBox.Text
+        end
+
+        local ok, action, result = toggleCharacterStatus(
+            statusName,
+            valueText
+        )
+
+        if ok and action == "added" then
+            local formattedValue = formatStatusValue(result)
+
+            if ui and ui.StatusValueBox then
+                ui.StatusValueBox.Text = formattedValue
+            end
+
+            nameButton.Text =
+                "  已添加: "
+                .. displayName
+                .. " = "
+                .. formattedValue
+
+            nameButton.BackgroundColor3 = COLOR_SUCCESS
+
+        elseif ok and action == "removed" then
+            nameButton.Text =
+                "  已删除: "
+                .. displayName
+
+            nameButton.BackgroundColor3 = COLOR_RED
+
+        else
+            nameButton.Text =
+                "  操作失败: "
+                .. tostring(result or action or "未知错误")
+
+            nameButton.BackgroundColor3 = COLOR_RED
+        end
+
+        task.delay(0.8, function()
+            if nameButton and nameButton.Parent then
+                nameButton.Text = "  " .. displayName
+                nameButton.BackgroundColor3 = COLOR_BTN_BG
+            end
+        end)
+    end)
+
+    -- Lua table 的空字符串可以正常作为键使用。
+    statusRowMap[statusName] = {
         RowFrame = rowFrame,
         NameButton = nameButton,
         StatusData = statusData
