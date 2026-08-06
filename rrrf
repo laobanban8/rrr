@@ -1297,14 +1297,16 @@ local function escapeRichText(text)
         :gsub(">", "&gt;")
 end
 
-local function colorizeRatingText(value, rainbowHue)
+local function colorizeRatingText(value)
     value = escapeRichText(value)
 
     return value:gsub("([A-Za-z]+[%+%-]*)", function(token)
         local color = RATING_COLORS[token]
 
+        -- SSS+ 不再使用动态 HSV。
+        -- 它会交给 applySpecialRatingGradient 使用静态彩虹渐变。
         if token == "SSS+" then
-            color = Color3.fromHSV(rainbowHue or 0, 1, 1)
+            return token
         end
 
         if not color then
@@ -1410,53 +1412,47 @@ local function applySpecialRatingGradient(valueLabel, rawValue)
         gradient.Name = "SpecialRatingGradient"
         gradient.Rotation = 45
 
-        -- 蓝 -> 黑；中央黑色严格占 10%；黑 -> 白。
+        -- Infinite：蓝 -> 黑；中央黑色严格占 10%；黑 -> 白。
         gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(
-                0.00,
-                Color3.fromRGB(35, 145, 255)
-            ),
-            ColorSequenceKeypoint.new(
-                0.45,
-                Color3.fromRGB(0, 0, 0)
-            ),
-            ColorSequenceKeypoint.new(
-                0.55,
-                Color3.fromRGB(0, 0, 0)
-            ),
-            ColorSequenceKeypoint.new(
-                1.00,
-                Color3.fromRGB(255, 255, 255)
-            )
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(35, 145, 255)),
+            ColorSequenceKeypoint.new(0.45, Color3.fromRGB(0, 0, 0)),
+            ColorSequenceKeypoint.new(0.55, Color3.fromRGB(0, 0, 0)),
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 255, 255))
         })
+
     elseif string.find(value, "Changing", 1, true) then
         gradient = Instance.new("UIGradient")
         gradient.Name = "SpecialRatingGradient"
         gradient.Rotation = 0
 
-        -- 左侧 50% 纯黑，右侧 50% 纯白。
+        -- Changing：左侧 50% 纯黑，右侧 50% 纯白。
         gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(
-                0.00,
-                Color3.fromRGB(0, 0, 0)
-            ),
-            ColorSequenceKeypoint.new(
-                0.499,
-                Color3.fromRGB(0, 0, 0)
-            ),
-            ColorSequenceKeypoint.new(
-                0.501,
-                Color3.fromRGB(255, 255, 255)
-            ),
-            ColorSequenceKeypoint.new(
-                1.00,
-                Color3.fromRGB(255, 255, 255)
-            )
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(0, 0, 0)),
+            ColorSequenceKeypoint.new(0.499, Color3.fromRGB(0, 0, 0)),
+            ColorSequenceKeypoint.new(0.501, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 255, 255))
+        })
+
+    elseif string.find(value, "SSS+", 1, true) then
+        gradient = Instance.new("UIGradient")
+        gradient.Name = "SpecialRatingGradient"
+        gradient.Rotation = 0
+
+        -- SSS+：静态彩虹渐变，不再随 tick 变化。
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 60, 60)),    -- 红
+            ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 150, 45)),   -- 橙
+            ColorSequenceKeypoint.new(0.32, Color3.fromRGB(255, 235, 70)),   -- 黄
+            ColorSequenceKeypoint.new(0.50, Color3.fromRGB(80, 255, 120)),   -- 绿
+            ColorSequenceKeypoint.new(0.68, Color3.fromRGB(70, 180, 255)),   -- 蓝
+            ColorSequenceKeypoint.new(0.84, Color3.fromRGB(150, 90, 255)),   -- 紫
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 85, 220))    -- 粉
         })
     end
 
     if gradient then
-        -- UIGradient 以 TextColor3 为基色进行显示。
+        -- UIGradient 只能稳定作用于普通 TextColor3。
+        -- 所以特殊评级必须关闭 RichText。
         valueLabel.TextColor3 = COLOR_WHITE
         gradient.Parent = valueLabel
         return true
@@ -1471,14 +1467,13 @@ local function refreshSkillRatingLabels(skillData, row)
     end
 
     local values = getSkillRatingValues(skillData)
-    local rainbowHue = (tick() * 0.18) % 1
 
     for index, ratingRefs in ipairs(row.RatingLabels) do
         local valueLabel = ratingRefs.ValueLabel
         local value = tostring(values[index] or "Unknown")
 
         ratingRefs.TitleLabel.Text = RATING_TITLES[index]
-		applyRatingTitleStyle(ratingRefs.TitleLabel, index)
+        applyRatingTitleStyle(ratingRefs.TitleLabel, index)
 
         local usesSpecialGradient = applySpecialRatingGradient(
             valueLabel,
@@ -1486,15 +1481,13 @@ local function refreshSkillRatingLabels(skillData, row)
         )
 
         if usesSpecialGradient then
-            -- 渐变必须作用于普通文字，不能再由 RichText font 覆盖颜色。
+            -- Infinite / Changing / SSS+ 都走静态 UIGradient。
             valueLabel.RichText = false
             valueLabel.Text = value
         else
             valueLabel.RichText = true
-            valueLabel.Text = colorizeRatingText(
-                value,
-                rainbowHue
-            )
+            valueLabel.TextColor3 = COLOR_WHITE
+            valueLabel.Text = colorizeRatingText(value)
         end
     end
 end
@@ -3218,6 +3211,11 @@ fireSkill = function(skillData)
     end
 
     updateSingleRowText(skillData)
+
+    local row = rowMap[skillData.name]
+    if row then
+        refreshSkillRatingLabels(skillData, row)
+    end
 
     task.spawn(function()
         pcall(function()
@@ -7584,23 +7582,6 @@ end
 -- COOLDOWN TEXT UPDATE LOOP
 --------------------------------------------------
 function startCooldownRenderLoop()
-    task.spawn(function()
-        while uiRefs
-            and uiRefs.ScreenGui
-            and uiRefs.ScreenGui.Parent
-        do
-            for _, skillData in ipairs(scannedSkills) do
-                local row = rowMap[skillData.name]
-
-                if row then
-                    updateSingleRowText(skillData)
-                    refreshSkillRatingLabels(skillData, row)
-                end
-            end
-
-            task.wait(0.1)
-        end
-    end)
 end
 
 --------------------------------------------------
