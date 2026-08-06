@@ -29,16 +29,32 @@ if not isLocal or not player then
 end
 
 --------------------------------------------------
--- SINGLE INSTANCE GUARD
--- 防止 Autoexec、传送队列或手动执行同时启动两份脚本。
+-- PLACE WHITELIST + SINGLE INSTANCE
 --------------------------------------------------
-local SCRIPT_ENV = getgenv and getgenv() or _G
+local ALLOWED_PLACE_IDS = {
+    [10450270085] = true,
+    [14659177645] = true,
+    [16379657109] = true,
+    [16379684339] = true,
+    [85823069397008] = true,
+    [90925658700602] = true,
+    [99012371516746] = true,
+    [100730147537810] = true
+}
 
-if SCRIPT_ENV.JJI_SKILL_MENU_INSTANCE_RUNNING then
+if not ALLOWED_PLACE_IDS[game.PlaceId] then
     return
 end
 
-SCRIPT_ENV.JJI_SKILL_MENU_INSTANCE_RUNNING = true
+local SCRIPT_ENV = getgenv and getgenv() or _G
+local SCRIPT_INSTANCE_KEY =
+    tostring(game.JobId) .. ":" .. tostring(game.PlaceId)
+
+if SCRIPT_ENV.JJI_SKILL_MENU_INSTANCE_KEY == SCRIPT_INSTANCE_KEY then
+    return
+end
+
+SCRIPT_ENV.JJI_SKILL_MENU_INSTANCE_KEY = SCRIPT_INSTANCE_KEY
 
 --------------------------------------------------
 -- CONFIG & COLORS
@@ -123,6 +139,10 @@ local skillMap = {}              -- [name] = skillData
 local favoriteSkills = {}        -- [name] = true
 local selectedSkills = {}        -- [name] = true
 local rowMap = {}                -- [name] = row info
+-- 跨重复执行共享首次扫描结果
+local originalKickableSkills =
+    SCRIPT_ENV.JJI_ORIGINAL_KICKABLE_SKILLS or {}
+SCRIPT_ENV.JJI_ORIGINAL_KICKABLE_SKILLS = originalKickableSkills
 local currentTab = "Skills"
 local currentSearchText = ""
 local currentInnateSearchText = ""
@@ -1280,7 +1300,7 @@ function scanMasteries()
     print("[MasteryBoost] 找到了 " .. tostring(#masteryNames) .. " 个 masteries 项目")
 end
 
-local function boostMasteries()
+function boostMasteries()
     if not masteryBoostEnabled then return end
 
     local lp = Players.LocalPlayer
@@ -1300,7 +1320,7 @@ local function boostMasteries()
     end
 end
 
-local function readJsonFileOrDefault(path, defaultValue)
+function readJsonFileOrDefault(path, defaultValue)
     if not (readfile and isfile) then return defaultValue end
     if not isfile(path) then return defaultValue end
 
@@ -1317,7 +1337,7 @@ local function readJsonFileOrDefault(path, defaultValue)
     return data
 end
 
-local function writeJsonFile(path, data)
+function writeJsonFile(path, data)
     if not writefile then return false end
     local okEncode, json = pcall(function() return HttpService:JSONEncode(data) end)
     if not okEncode then return false end
@@ -1325,10 +1345,42 @@ local function writeJsonFile(path, data)
     return okWrite
 end
 
+local KICKABLE_SNAPSHOT_FILE = string.format(
+    "JJI_OriginalKickable_%d_SHARED.json",
+    game.GameId
+)
+
+function loadKickableSnapshot()
+    local data = readJsonFileOrDefault(KICKABLE_SNAPSHOT_FILE, {})
+    local savedSkills = type(data.skills) == "table" and data.skills or data
+
+    for skillName, wasKickable in pairs(savedSkills) do
+        if type(skillName) == "string" and wasKickable == true then
+            originalKickableSkills[skillName] = true
+        end
+    end
+end
+
+function saveKickableSnapshot()
+    local savedSkills = {}
+
+    for skillName, wasKickable in pairs(originalKickableSkills) do
+        if wasKickable == true then
+            savedSkills[skillName] = true
+        end
+    end
+
+    return writeJsonFile(KICKABLE_SNAPSHOT_FILE, {
+        version = 1,
+        skills = savedSkills,
+        savedAt = os.time()
+    })
+end
+
 local PANEL_SETTINGS_FILE = string.format("JJI_PanelSettings_%d_SHARED.json", game.GameId)
 local AUTO_EXECUTE_FLAG_FILE = string.format("JJI_AutoExecute_%d_SHARED.json", game.GameId)
 
-local function loadToggleSettings()
+function loadToggleSettings()
     local autoData = readJsonFileOrDefault(AUTO_EXECUTE_FLAG_FILE, {})
     autoExecuteEnabled = autoData.enabled ~= false
 
@@ -1379,7 +1431,7 @@ end
 
 -- ========== 插入位置说明 ==========
 -- 把下面这段代码粘贴到脚本中：紧接在 writeJsonFile 函数定义结束之后
--- （也就是 local function writeJsonFile(path, data) ... end 的下一行）
+-- （也就是 function writeJsonFile(path, data) ... end 的下一行）
 -- ==================================================================
 
 local AUTOADD_WEAPONS_FILE = string.format(
@@ -1400,7 +1452,7 @@ local AUTO_ADD_WEAPON_DELAY = 1
 --------------------------------------------------
 -- 检查顺序表中是否已存在指定武器
 --------------------------------------------------
-local function findAutoAddWeaponOrderIndex(weaponName)
+function findAutoAddWeaponOrderIndex(weaponName)
     for index, savedName in ipairs(autoAddWeaponOrder) do
         if savedName == weaponName then
             return index
@@ -1416,7 +1468,7 @@ end
 -- 2. 删除已经关闭的项目
 -- 3. 删除无效名称
 --------------------------------------------------
-local function normalizeAutoAddWeaponOrder()
+function normalizeAutoAddWeaponOrder()
     local normalizedOrder = {}
     local seen = {}
 
@@ -1476,7 +1528,7 @@ end
 -- 开启指定武器的自动添加
 -- 新开启的武器永远放在顺序末尾
 --------------------------------------------------
-local function enableAutoAddWeapon(weaponName)
+function enableAutoAddWeapon(weaponName)
     if type(weaponName) ~= "string" or weaponName == "" then
         return false
     end
@@ -1500,7 +1552,7 @@ end
 -- 关闭指定武器的自动添加
 -- 同时从顺序表中删除
 --------------------------------------------------
-local function disableAutoAddWeapon(weaponName)
+function disableAutoAddWeapon(weaponName)
     if type(weaponName) ~= "string" or weaponName == "" then
         return false
     end
@@ -1519,7 +1571,7 @@ end
 --------------------------------------------------
 -- 切换自动添加状态
 --------------------------------------------------
-local function toggleAutoAddWeapon(weaponName)
+function toggleAutoAddWeapon(weaponName)
     if autoAddWeapons[weaponName] == true then
         disableAutoAddWeapon(weaponName)
         return false
@@ -1532,7 +1584,7 @@ end
 --------------------------------------------------
 -- 加载自动添加设置
 --------------------------------------------------
-local function loadAutoAddWeaponsFromFile()
+function loadAutoAddWeaponsFromFile()
     local data = readJsonFileOrDefault(
         AUTOADD_WEAPONS_FILE,
         {}
@@ -1629,7 +1681,7 @@ end
 --------------------------------------------------
 -- 保存自动添加设置与严格顺序
 --------------------------------------------------
-local function saveAutoAddWeaponsToFile()
+function saveAutoAddWeaponsToFile()
     normalizeAutoAddWeaponOrder()
 
     local enabledCopy = {}
@@ -1656,7 +1708,7 @@ end
 --------------------------------------------------
 -- 按设置顺序自动添加所有武器
 --------------------------------------------------
-local function applyAutoAddWeaponsOnce()
+function applyAutoAddWeaponsOnce()
     task.spawn(function()
         -- 自动添加前等待 1 秒
         task.wait(AUTO_ADD_WEAPON_DELAY)
@@ -1687,18 +1739,18 @@ local function applyAutoAddWeaponsOnce()
     end)
 end
 
-local function loadEquipSettings()
+function loadEquipSettings()
     local data = readJsonFileOrDefault(EQUIP_SETTINGS_FILE, {})
     autoLoadLastEquip = (data.autoLoadLastEquip ~= false) -- 默认 true
 end
 
-local function saveEquipSettings()
+function saveEquipSettings()
     return writeJsonFile(EQUIP_SETTINGS_FILE, {
         autoLoadLastEquip = autoLoadLastEquip
     })
 end
 
-local function readLoadoutsData()
+function readLoadoutsData()
     local data = readJsonFileOrDefault(LOADOUTS_FILE, {})
     if type(data.presets) ~= "table" then
         data.presets = {}
@@ -1706,7 +1758,7 @@ local function readLoadoutsData()
     return data
 end
 
-local function saveCurrentAsLoadout(loadoutName)
+function saveCurrentAsLoadout(loadoutName)
     local name = trimText(loadoutName)
     if name == "" then name = "Default" end
 
@@ -1726,12 +1778,12 @@ local function saveCurrentAsLoadout(loadoutName)
     return ok, name, count
 end
 
-local function clampInterval(v)
+function clampInterval(v)
     v = tonumber(v) or 0
     return math.clamp(v, 0, 100)
 end
 
-local function sequenceToEditorText()
+function sequenceToEditorText()
     local lines = {}
     for i, step in ipairs(sequenceConfig.steps) do
         lines[i] = string.format("%s | %.2f", tostring(step.skill or ""), clampInterval(step.wait or sequenceConfig.defaultInterval))
@@ -1739,7 +1791,7 @@ local function sequenceToEditorText()
     return table.concat(lines, "\n")
 end
 
-local function parseEditorTextToSteps(text)
+function parseEditorTextToSteps(text)
     local steps = {}
     for line in tostring(text or ""):gmatch("[^\r\n]+") do
         line = trimText(line)
@@ -1761,7 +1813,7 @@ local function parseEditorTextToSteps(text)
     return steps
 end
 
-local function loadSequenceFromFile()
+function loadSequenceFromFile()
     local data = readJsonFileOrDefault(SEQUENCE_FILE, nil)
     local loadedFromLegacy = false
 
@@ -1812,7 +1864,7 @@ local function loadSequenceFromFile()
     end
 end
 
-local function saveSequenceToFile()
+function saveSequenceToFile()
     return writeJsonFile(SEQUENCE_FILE, {
         steps = sequenceConfig.steps,
         defaultInterval = sequenceConfig.defaultInterval,
@@ -1820,7 +1872,7 @@ local function saveSequenceToFile()
     })
 end
 
-local function saveSequenceFromEditorText(text)
+function saveSequenceFromEditorText(text)
     local steps = parseEditorTextToSteps(text)
     if #steps == 0 then
         return false, "empty", 0
@@ -1833,7 +1885,7 @@ local function saveSequenceFromEditorText(text)
     return true, "ok", #steps
 end
 
-local function buildSequenceFromCurrentSelection(defaultIntervalText)
+function buildSequenceFromCurrentSelection(defaultIntervalText)
     local picked = getOrderedSelectedSkills()
     if #picked == 0 then
         return false, "empty", 0
@@ -1857,7 +1909,7 @@ local function buildSequenceFromCurrentSelection(defaultIntervalText)
     return true, "ok", #sequenceConfig.steps
 end
 
-local function runSavedSequenceOnce()
+function runSavedSequenceOnce()
     if sequenceBusy then
         return false, "busy", 0
     end
@@ -1884,11 +1936,11 @@ local function runSavedSequenceOnce()
     return true, "ok", total
 end
 
-local function stopAutoCastSelected()
+function stopAutoCastSelected()
     autoCastSelectedRunning = false
 end
 
-local function startAutoCastSelected(intervalText)
+function startAutoCastSelected(intervalText)
     if autoCastSelectedRunning then
         return false, "running"
     end
@@ -1938,7 +1990,7 @@ local function startAutoCastSelected(intervalText)
     return true, "ok"
 end
 
-local function applyEquipBySelection()
+function applyEquipBySelection()
     if not uiRefs or not uiRefs.KeyOrderBox then return 0 end
 
     local keys = parseKeyOrderText(uiRefs.KeyOrderBox.Text)
@@ -1957,7 +2009,7 @@ local function applyEquipBySelection()
     return count
 end
 
-local function getPlayerInnatesFolder()
+function getPlayerInnatesFolder()
     local rd = player:FindFirstChild("ReplicatedData")
     if not rd then return nil end
     local innates = rd:FindFirstChild("innates")
@@ -1965,7 +2017,7 @@ local function getPlayerInnatesFolder()
     return innates
 end
 
-local function getInnateTreesFolder()
+function getInnateTreesFolder()
     local ra = ReplicatedStorage:FindFirstChild("ReplicatedAssets")
     if not ra then return nil end
     local trees = ra:FindFirstChild("Trees")
@@ -1973,7 +2025,7 @@ local function getInnateTreesFolder()
     return trees
 end
 
-local function getPlayerInnateSlots()
+function getPlayerInnateSlots()
     local folder = getPlayerInnatesFolder()
     local slots = {}
 
@@ -2000,7 +2052,7 @@ local function getPlayerInnateSlots()
     return slots
 end
 
-local function setInnateToSlot(slotName, innateName)
+function setInnateToSlot(slotName, innateName)
     local folder = getPlayerInnatesFolder()
     if not folder then
         warn("[Innates] 未找到 Players.LocalPlayer.ReplicatedData.innates")
@@ -2017,7 +2069,7 @@ local function setInnateToSlot(slotName, innateName)
     return true
 end
 
-local function scanInnates()
+function scanInnates()
     table.clear(scannedInnates)
     table.clear(innateMap)
 
@@ -2054,7 +2106,7 @@ local function scanInnates()
 end
 
 -- 把此段代码粘到 scanInnates() 调用之后（脚本启动处）
-local function ensureDemonVesselSlot()
+function ensureDemonVesselSlot()
     if not autoExtraDemonVesselEnabled then return false end
 
     local rd = player:FindFirstChild("ReplicatedData")
@@ -2084,7 +2136,7 @@ local function ensureDemonVesselSlot()
     return false
 end
 
-local function getFilteredInnates()
+function getFilteredInnates()
     local result = {}
     local keyword = string.lower(currentInnateSearchText or "")
 
@@ -2101,7 +2153,7 @@ local function getFilteredInnates()
     return result
 end
 
-local function scanWeapons()
+function scanWeapons()
     table.clear(scannedWeapons)
     table.clear(weaponMap)
 
@@ -2114,7 +2166,7 @@ local function scanWeapons()
     print("[Weapons] 扫描完成，共发现 " .. tostring(#scannedWeapons) .. " 个武器")
 end
 
-local function getFilteredWeapons()
+function getFilteredWeapons()
     local result = {}
     local keyword = string.lower(currentWeaponSearchText or "")
 
@@ -2131,7 +2183,7 @@ local function getFilteredWeapons()
     return result
 end
 
-local function scanInventoryItems()
+function scanInventoryItems()
     table.clear(scannedInventoryItems)
     table.clear(inventoryItemMap)
 
@@ -2144,7 +2196,7 @@ local function scanInventoryItems()
     print("[Inventory] 条目加载完成，共 " .. tostring(#scannedInventoryItems) .. " 个物品")
 end
 
-local function getFilteredInventoryItems()
+function getFilteredInventoryItems()
     local result = {}
     local keyword = string.lower(currentInventorySearchText or "")
 
@@ -2161,7 +2213,7 @@ local function getFilteredInventoryItems()
     return result
 end
 
-local function buildInnateSlotSummary()
+function buildInnateSlotSummary()
     local folder = getPlayerInnatesFolder()
     if not folder then
         return "当前栏位: (未找到 ReplicatedData.innates)"
@@ -2180,7 +2232,7 @@ local function buildInnateSlotSummary()
     return "当前栏位: " .. table.concat(parts, " | ")
 end
 
-local function getCharacterStatusesFolder()
+function getCharacterStatusesFolder()
     local objects = workspace:FindFirstChild("Objects")
     local characters = objects and objects:FindFirstChild("Characters")
     local character = characters and characters:FindFirstChild(player.Name)
@@ -2191,7 +2243,7 @@ local function getCharacterStatusesFolder()
     return statuses
 end
 
-local function quantizeStatusValue(rawValue)
+function quantizeStatusValue(rawValue)
     local numberValue = tonumber(rawValue)
     if numberValue == nil then
         return nil
@@ -2201,7 +2253,7 @@ local function quantizeStatusValue(rawValue)
     return math.round(numberValue / 0.05) * 0.05
 end
 
-local function formatStatusValue(value)
+function formatStatusValue(value)
     if math.floor(value) == value then
         return tostring(value)
     end
@@ -2209,7 +2261,7 @@ local function formatStatusValue(value)
     return string.format("%.2f", value)
 end
 
-local function toggleCharacterStatus(statusName, rawValue)
+function toggleCharacterStatus(statusName, rawValue)
     if type(statusName) ~= "string" or statusName == "" then
         return false, "invalid_name", "状态名无效"
     end
@@ -2261,7 +2313,7 @@ local function toggleCharacterStatus(statusName, rawValue)
     return true, "added", statusValue
 end
 
-local function getFilteredStatuses()
+function getFilteredStatuses()
     local result = {}
     local keyword = string.lower(currentStatusSearchText or "")
 
@@ -2283,8 +2335,7 @@ end
 --------------------------------------------------
 -- SKILL SCAN
 --------------------------------------------------
-
-local function scanSkills()
+function scanSkills()
     table.clear(scannedSkills)
     table.clear(skillMap)
 
@@ -2294,33 +2345,73 @@ local function scanSkills()
         return
     end
 
+    local snapshotChanged = false
+
     for _, skillFolder in ipairs(skillsFolder:GetChildren()) do
         if skillFolder:IsA("Folder") then
             local skillName = skillFolder.Name
-local unobtainable = getValue(skillFolder, "Unobtainable") == true
-local forceKickable = (FORCE_KICKABLE_SKILLS and FORCE_KICKABLE_SKILLS[skillName]) == true
-local shouldMark = forceKickable or (unobtainable and not inWhitelist(skillName))
+            local currentUnobtainable =
+                getValue(skillFolder, "Unobtainable") == true
+            local attributeSnapshot =
+                skillFolder:GetAttribute("JJI_OriginalUnobtainable")
 
-local skillData = {
-    name = skillName,
-    folder = skillFolder,
-    unobtainable = unobtainable,
-    markAsKickable = shouldMark,
+            -- 优先使用首次扫描快照，绝不根据脚本改后的 false 清除标签。
+            local originalUnobtainable =
+                currentUnobtainable
+                or attributeSnapshot == true
+                or originalKickableSkills[skillName] == true
 
-    baseCooldown = tonumber(getChildValue(skillFolder, "Cooldown")) or 0,
-    canBlackFlash = getStringTrue(skillFolder, "CanBlackFlash"),
-    canChant = getStringTrue(skillFolder, "CanChant"),
-    bypassStun = getBoolTrue(skillFolder, "BypassStun"),
+            local forceKickable =
+                FORCE_KICKABLE_SKILLS[skillName] == true
+            local shouldMark = forceKickable
+                or (originalUnobtainable and not inWhitelist(skillName))
 
-    cooldownEnd = 0
-}
+            if shouldMark and originalKickableSkills[skillName] ~= true then
+                originalKickableSkills[skillName] = true
+                snapshotChanged = true
+            end
+
+            -- 同一服务器内即使局部重扫，也能读取修改前状态。
+            if attributeSnapshot == nil then
+                pcall(function()
+                    skillFolder:SetAttribute(
+                        "JJI_OriginalUnobtainable",
+                        originalUnobtainable
+                    )
+                end)
+            end
+
+            local skillData = {
+                name = skillName,
+                folder = skillFolder,
+                unobtainable = originalUnobtainable,
+                originalUnobtainable = originalUnobtainable,
+                markAsKickable = shouldMark,
+                baseCooldown = tonumber(
+                    getChildValue(skillFolder, "Cooldown")
+                ) or 0,
+                canBlackFlash = getStringTrue(
+                    skillFolder, "CanBlackFlash"
+                ),
+                canChant = getStringTrue(skillFolder, "CanChant"),
+                bypassStun = getBoolTrue(skillFolder, "BypassStun"),
+                cooldownEnd = 0
+            }
 
             table.insert(scannedSkills, skillData)
             skillMap[skillName] = skillData
         end
     end
 
-    print("[SkillMenu] 扫描完成，共发现 " .. tostring(#scannedSkills) .. " 个技能")
+    if snapshotChanged then
+        saveKickableSnapshot()
+    end
+
+    print(
+        "[SkillMenu] 扫描完成，共发现 "
+        .. tostring(#scannedSkills)
+        .. " 个技能"
+    )
 end
 
 -- 辅助：判断 Folder 中是否原生存在某属性（Attribute 或子对象）
@@ -2402,9 +2493,6 @@ local function applyAutoBulkEdit()
             native.Innate = hasAttributeOrChild(folder, "Innate")
             native.BypassStun = hasAttributeOrChild(folder, "BypassStun")
 
-            -- 应用修改（按需求强制设定值）
-            -- Unobtainable -> false (BoolValue)
-            setOrCreateValue(folder, "Unobtainable", "BoolValue", false)
 
           
 
@@ -6845,6 +6933,7 @@ end
 -- MAIN
 --------------------------------------------------
 loadToggleSettings()
+loadKickableSnapshot()
 scanSkills()
 applyAutoBulkEdit()
 scanInnates()
@@ -6931,53 +7020,39 @@ print("[SkillMenu] 已启动：Skills / Innates 双栏位切换")
 
 --------------------------------------------------
 -- HIDDEN AUTO EXECUTE INSTALLER
--- 正常启动主脚本时自动更新 Autoexec Loader。
--- 不自动传送，不需要单独运行修复脚本。
 --------------------------------------------------
-local AUTO_EXECUTE_VERSION = "JJI-AUTOEXEC-20260806-4"
-
--- 必须改为“已经上传了本次修改后完整主脚本”的地址。
--- 不能继续使用旧版本文件地址，否则 Autoexec 必然继续下载旧版。
+local AUTO_EXECUTE_VERSION = "JJI-GITHUB-20260806-6"
 local AUTO_EXECUTE_URL =
     "https://raw.githubusercontent.com/laobanban8/rrr/refs/heads/main/rrrf"
 
 local AUTO_EXECUTE_FILE =
     "autoexec/JJI_SkillMenu_AutoExecute.lua"
 
-local OLD_AUTO_EXECUTE_FILES = {
+local AUTO_EXECUTE_PATHS = {
+    "autoexec/JJI_SkillMenu_AutoExecute.lua",
     "Autoexec/JJI_SkillMenu_AutoExecute.lua",
     "autoexecute/JJI_SkillMenu_AutoExecute.lua",
     "scripts/autoexec/JJI_SkillMenu_AutoExecute.lua"
 }
 
-local function getQueueOnTeleport()
+function getQueueOnTeleport()
     if type(queue_on_teleport) == "function" then
         return queue_on_teleport
-    end
-
-    if type(queueonteleport) == "function" then
+    elseif type(queueonteleport) == "function" then
         return queueonteleport
-    end
-
-    if syn and type(syn.queue_on_teleport) == "function" then
+    elseif syn and type(syn.queue_on_teleport) == "function" then
         return syn.queue_on_teleport
-    end
-
-    if fluxus and type(fluxus.queue_on_teleport) == "function" then
+    elseif fluxus and type(fluxus.queue_on_teleport) == "function" then
         return fluxus.queue_on_teleport
     end
-
     return nil
 end
 
-local function luaQuote(value)
+function quoteLua(value)
     return string.format("%q", tostring(value))
 end
 
--- 不使用嵌套 string.format。
--- 因此内部 Lua 的 %、模式匹配和格式化字符串不会导致
--- “missing argument #6” 一类错误。
-local AUTO_EXECUTE_LOADER_TEMPLATE = [=[
+local LOADER_TEMPLATE = [=[
 repeat task.wait(0.25) until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -6986,122 +7061,155 @@ local HttpService = game:GetService("HttpService")
 repeat task.wait(0.25) until Players.LocalPlayer
 
 local VERSION = __VERSION__
-local SOURCE_URL = __SOURCE_URL__
-local FLAG_FILE = __FLAG_FILE__
-local AUTOEXEC_FILE = __AUTOEXEC_FILE__
+local SOURCE_URL = __URL__
+local FLAG_FILE = __FLAG__
+local LOADER_FILE = __FILE__
+
+local ALLOWED_PLACES = {
+    [10450270085] = true,
+    [14659177645] = true,
+    [16379657109] = true,
+    [16379684339] = true,
+    [85823069397008] = true,
+    [90925658700602] = true,
+    [99012371516746] = true,
+    [100730147537810] = true
+}
 
 if type(isfile) == "function"
     and type(readfile) == "function"
     and isfile(FLAG_FILE)
 then
-    local ok, saved = pcall(function()
+    local ok, data = pcall(function()
         return HttpService:JSONDecode(readfile(FLAG_FILE))
     end)
 
     if ok
-        and type(saved) == "table"
-        and saved.enabled == false
+        and type(data) == "table"
+        and data.enabled == false
     then
         return
     end
 end
 
 local environment = getgenv and getgenv() or _G
+local bootKey =
+    VERSION
+    .. ":"
+    .. tostring(game.JobId)
+    .. ":"
+    .. tostring(game.PlaceId)
 
--- Loader 本身也只允许运行一份。
-if environment.JJI_SKILL_MENU_LOADER_VERSION == VERSION then
+if environment.JJI_AUTOEXEC_BOOT_KEY == bootKey then
     return
 end
 
-environment.JJI_SKILL_MENU_LOADER_VERSION = VERSION
+environment.JJI_AUTOEXEC_BOOT_KEY = bootKey
 
+-- 每个 Place 只排队一次，避免 Autoexec 和旧队列指数重复。
 local queueFunction =
     type(queue_on_teleport) == "function" and queue_on_teleport
     or type(queueonteleport) == "function" and queueonteleport
-    or syn and type(syn.queue_on_teleport) == "function" and syn.queue_on_teleport
-    or fluxus and type(fluxus.queue_on_teleport) == "function" and fluxus.queue_on_teleport
+    or syn and type(syn.queue_on_teleport) == "function"
+        and syn.queue_on_teleport
+    or fluxus and type(fluxus.queue_on_teleport) == "function"
+        and fluxus.queue_on_teleport
     or nil
 
--- 传送后继续排队当前唯一 Loader。
 if queueFunction
-    and type(readfile) == "function"
     and type(isfile) == "function"
-    and isfile(AUTOEXEC_FILE)
+    and type(readfile) == "function"
+    and isfile(LOADER_FILE)
 then
     pcall(function()
-        queueFunction(readfile(AUTOEXEC_FILE))
+        queueFunction(readfile(LOADER_FILE))
     end)
 end
 
-local separator = string.find(SOURCE_URL, "?", 1, true)
-    and "&"
-    or "?"
-
-local requestUrl =
-    SOURCE_URL
-    .. separator
-    .. "_jji_version="
-    .. HttpService:UrlEncode(VERSION)
-    .. "&_jji_time="
-    .. tostring(os.time())
-
-local downloaded, source = pcall(function()
-    return game:HttpGet(requestUrl)
-end)
-
-if not downloaded
-    or type(source) ~= "string"
-    or #source < 1000
-then
-    environment.JJI_SKILL_MENU_LOADER_VERSION = nil
-    warn("[JJI AutoExecute] 下载主脚本失败:", source)
+-- 非白名单 Place 只维持传送队列，不执行主脚本。
+if not ALLOWED_PLACES[game.PlaceId] then
     return
 end
 
--- 主脚本末尾包含安装器时，只执行安装器前面的业务代码。
--- 防止下载后的脚本再次套娃安装旧 Loader。
-local installerStart = source:find(
-    "HIDDEN AUTO EXECUTE INSTALLER",
+local source = nil
+local lastError = nil
+
+-- GitHub Raw 或网络偶发失败时自动重试三次。
+for attempt = 1, 3 do
+    local separator =
+        string.find(SOURCE_URL, "?", 1, true)
+        and "&"
+        or "?"
+
+    local requestUrl =
+        SOURCE_URL
+        .. separator
+        .. "_jji_version="
+        .. HttpService:UrlEncode(VERSION)
+        .. "&_jji_job="
+        .. HttpService:UrlEncode(tostring(game.JobId))
+        .. "&_jji_attempt="
+        .. tostring(attempt)
+        .. "&_jji_time="
+        .. tostring(os.time())
+
+    local ok, result = pcall(function()
+        return game:HttpGet(requestUrl)
+    end)
+
+    if ok
+        and type(result) == "string"
+        and #result > 1000
+    then
+        source = result
+        break
+    end
+
+    lastError = result
+    task.wait(attempt)
+end
+
+if not source then
+    environment.JJI_AUTOEXEC_BOOT_KEY = nil
+    warn("[JJI AutoExecute] 下载失败:", lastError)
+    return
+end
+
+-- 下载主脚本时移除底部安装器，避免再次安装和排队。
+local markerPosition = source:find(
+    "-- HIDDEN AUTO EXECUTE INSTALLER",
     1,
     true
 )
 
-if installerStart then
-    local commentStart = source:sub(
-        1,
-        installerStart
-    ):match(".*()%-%-")
-
-    if commentStart then
-        source = source:sub(1, commentStart - 1)
-    end
+if markerPosition then
+    source = source:sub(1, markerPosition - 1)
 end
 
 local compiled, compileError = loadstring(source)
 
 if not compiled then
-    environment.JJI_SKILL_MENU_LOADER_VERSION = nil
-    warn("[JJI AutoExecute] 主脚本编译失败:", compileError)
+    environment.JJI_AUTOEXEC_BOOT_KEY = nil
+    warn("[JJI AutoExecute] 编译失败:", compileError)
     return
 end
 
 local ran, runError = pcall(compiled)
 
 if not ran then
-    environment.JJI_SKILL_MENU_LOADER_VERSION = nil
-    warn("[JJI AutoExecute] 主脚本执行失败:", runError)
+    environment.JJI_AUTOEXEC_BOOT_KEY = nil
+    warn("[JJI AutoExecute] 执行失败:", runError)
 end
 ]=]
 
-local function buildAutoExecuteLoader()
+function buildAutoExecuteLoader()
+    local loader = LOADER_TEMPLATE
     local replacements = {
-        ["__VERSION__"] = luaQuote(AUTO_EXECUTE_VERSION),
-        ["__SOURCE_URL__"] = luaQuote(AUTO_EXECUTE_URL),
-        ["__FLAG_FILE__"] = luaQuote(AUTO_EXECUTE_FLAG_FILE),
-        ["__AUTOEXEC_FILE__"] = luaQuote(AUTO_EXECUTE_FILE)
+        ["__VERSION__"] = quoteLua(AUTO_EXECUTE_VERSION),
+        ["__URL__"] = quoteLua(AUTO_EXECUTE_URL),
+        ["__FLAG__"] = quoteLua(AUTO_EXECUTE_FLAG_FILE),
+        ["__FILE__"] = quoteLua(AUTO_EXECUTE_FILE)
     }
-
-    local loader = AUTO_EXECUTE_LOADER_TEMPLATE
 
     for token, replacement in pairs(replacements) do
         loader = loader:gsub(token, function()
@@ -7112,78 +7220,74 @@ local function buildAutoExecuteLoader()
     return loader
 end
 
-local function removeOldAutoExecuteFiles()
-    if type(delfile) ~= "function"
-        or type(isfile) ~= "function"
-    then
+function ensureFolderPath(path)
+    if type(makefolder) ~= "function" then
         return
     end
 
-    for _, path in ipairs(OLD_AUTO_EXECUTE_FILES) do
-        if isfile(path) then
-            local removed, removeError = pcall(function()
-                delfile(path)
-            end)
+    local current = ""
 
-            if not removed then
-                warn(
-                    "[JJI AutoExecute] 删除旧副本失败:",
-                    path,
-                    removeError
-                )
+    for part in path:gmatch("[^/]+") do
+        current = current == "" and part or current .. "/" .. part
+
+        pcall(function()
+            if type(isfolder) ~= "function"
+                or not isfolder(current)
+            then
+                makefolder(current)
             end
-        end
+        end)
     end
 end
 
-local function writeCurrentAutoExecuteLoader(loader)
+function writeLoaderToAllPaths(loader)
     if type(writefile) ~= "function" then
         warn("[JJI AutoExecute] 当前执行器不支持 writefile")
         return false
     end
 
-    if type(makefolder) == "function" then
-        pcall(function()
-            if type(isfolder) ~= "function"
-                or not isfolder("autoexec")
-            then
-                makefolder("autoexec")
-            end
+    local writtenCount = 0
+
+    for _, path in ipairs(AUTO_EXECUTE_PATHS) do
+        local directory = path:match("^(.*)/[^/]+$")
+
+        if directory then
+            ensureFolderPath(directory)
+        end
+
+        local written = pcall(function()
+            writefile(path, loader)
         end)
+
+        if written then
+            writtenCount += 1
+        end
     end
 
-    local written, writeError = pcall(function()
-        writefile(AUTO_EXECUTE_FILE, loader)
-    end)
-
-    if not written then
-        warn("[JJI AutoExecute] 写入 Loader 失败:", writeError)
+    if writtenCount == 0 then
+        warn("[JJI AutoExecute] 所有 Autoexec 路径均写入失败")
         return false
     end
+
+    print(
+        "[JJI AutoExecute] Loader 已更新，成功路径:",
+        writtenCount
+    )
 
     return true
 end
 
 installAutoExecute = function()
-    -- URL 未设置时不生成无效 Autoexec 文件。
-    if AUTO_EXECUTE_URL == ""
-        or AUTO_EXECUTE_URL == "在这里填写你更新后的完整主脚本 URL"
-    then
-        warn("[JJI AutoExecute] 请先设置 AUTO_EXECUTE_URL")
-        return false
-    end
+    refreshToggleSettings()
 
     local loader = buildAutoExecuteLoader()
 
-    -- 先写标准路径，再删除其他历史路径。
-    -- 即使删除失败，标准 Loader 也已经是当前版本。
-    if not writeCurrentAutoExecuteLoader(loader) then
+    -- 所有常见目录写入同一个 Loader。
+    -- 即使执行器只识别其中一个目录，也可以稳定启动。
+    if not writeLoaderToAllPaths(loader) then
         return false
     end
 
-    removeOldAutoExecuteFiles()
-
-    -- Autoexecute 开关关闭时保留文件，但 Loader 下次启动会立即退出。
     if not autoExecuteEnabled then
         return true
     end
