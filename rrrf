@@ -2954,6 +2954,60 @@ function writeJsonFile(path, data)
     return okWrite
 end
 
+--------------------------------------------------
+-- PERSISTENT TOGGLE STATES
+--------------------------------------------------
+local TOGGLE_STATE_FILE = string.format(
+    "JJI_ToggleStates_%d_SHARED.json",
+    game.GameId
+)
+
+local persistentToggleStates = {}
+
+local function loadPersistentToggleStates()
+    persistentToggleStates = readJsonFileOrDefault(
+        TOGGLE_STATE_FILE,
+        {}
+    )
+
+    if type(persistentToggleStates) ~= "table" then
+        persistentToggleStates = {}
+    end
+end
+
+local function savePersistentToggleStates()
+    return writeJsonFile(
+        TOGGLE_STATE_FILE,
+        persistentToggleStates
+    )
+end
+
+local function getPersistentToggleState(
+    key,
+    defaultValue
+)
+    if type(key) ~= "string" or key == "" then
+        return defaultValue == true
+    end
+
+    local savedValue = persistentToggleStates[key]
+
+    if typeof(savedValue) == "boolean" then
+        return savedValue
+    end
+
+    return defaultValue == true
+end
+
+local function setPersistentToggleState(key, enabled)
+    if type(key) ~= "string" or key == "" then
+        return false
+    end
+
+    persistentToggleStates[key] = enabled == true
+    return savePersistentToggleStates()
+end
+
 local KICKABLE_SNAPSHOT_FILE = string.format(
     "JJI_OriginalKickable_%d_SHARED.json",
     game.GameId
@@ -5045,12 +5099,85 @@ local function createToggle(parent, text, defaultValue, position, callback)
     corner.Parent = btn
 
     local state = defaultValue
+btn.MouseButton1Click:Connect(function()
+        state = not state
+        refresh()
+
+        if persist then
+            setPersistentToggleState(key, state)
+        end
+
+        if callback then
+            callback(state)
+        end
+    end)
+
+    return btn
+end
+
+local function createToggle(
+    parent,
+    text,
+    defaultValue,
+    position,
+    callback,
+    options
+)
+    options = options or {}
+
+    -- 默认保存。
+    -- 只有明确传入 persist = false 才不保存。
+    local persist = options.persist ~= false
+    local key = options.key or text
+
+    local state = defaultValue == true
+
+    if persist then
+        state = getPersistentToggleState(
+            key,
+            state
+        )
+    end
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 130, 0, 28)
+    btn.Position = position
+    btn.BackgroundColor3 =
+        state and COLOR_GREEN or COLOR_BTN_BG
+    btn.TextColor3 = COLOR_WHITE
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 12
+    btn.Text =
+        text .. ": " .. (state and "ON" or "OFF")
+    btn.AutoButtonColor = false
+    btn.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = btn
+
+    local function refresh()
+        btn.BackgroundColor3 =
+            state and COLOR_GREEN or COLOR_BTN_BG
+
+        btn.Text =
+            text .. ": " .. (state and "ON" or "OFF")
+    end
+
     btn.MouseButton1Click:Connect(function()
         state = not state
-        btn.BackgroundColor3 = state and COLOR_GREEN or COLOR_BTN_BG
-        btn.Text = text .. ": " .. (state and "ON" or "OFF")
-        callback(state)
+        refresh()
+
+        if persist then
+            setPersistentToggleState(key, state)
+        end
+
+        if callback then
+            callback(state)
+        end
     end)
+
+
 
     return btn
 end
@@ -5878,7 +6005,29 @@ local autoChantBtn = createToggle(autoFrame, "Auto Chant(WIP)", autoOptions.Chan
     sequenceEditorCorner.CornerRadius = UDim.new(0, 5)
     sequenceEditorCorner.Parent = sequenceEditorButton
 
-	syncUsefulThingState()
+--------------------------------------------------
+-- 一个可能有用的东西
+--------------------------------------------------
+
+-- 从自动保存文件读取状态。
+-- 如果以前没有保存过，则默认关闭。
+usefulThingEnabled = getPersistentToggleState(
+    "usefulThing",
+    false
+)
+
+-- 根据保存状态恢复实际功能。
+-- ON：添加缺少的 BoolValue。
+-- OFF：只删除脚本创建过的 BoolValue。
+local usefulRestoreOk, usefulRestoreResult =
+    setUsefulThingEnabled(usefulThingEnabled)
+
+if not usefulRestoreOk then
+    warn(
+        "[UsefulThing] 恢复状态失败:",
+        usefulRestoreResult
+    )
+end
 
 local usefulThingButton = Instance.new("TextButton")
 usefulThingButton.Name = "UsefulThingToggleButton"
@@ -5914,14 +6063,32 @@ usefulThingButton.MouseButton1Click:Connect(function()
 
     usefulThingButton.Active = false
 
-    local ok, result = setUsefulThingEnabled(
-        not usefulThingEnabled
-    )
+    local targetState = not usefulThingEnabled
+
+    local ok, result =
+        setUsefulThingEnabled(targetState)
 
     if ok then
+        -- setUsefulThingEnabled() 已经更新了
+        -- usefulThingEnabled，这里只需要保存。
+        local saved = setPersistentToggleState(
+            "usefulThing",
+            targetState
+        )
+
+        if not saved then
+            warn(
+                "[UsefulThing] 状态保存失败"
+            )
+        end
+
         refreshUsefulThingButton()
     else
-        warn("[UsefulThing] 切换失败:", result)
+        warn(
+            "[UsefulThing] 切换失败:",
+            result
+        )
+
         usefulThingButton.Text = "切换失败"
         usefulThingButton.BackgroundColor3 = COLOR_RED
     end
@@ -9182,6 +9349,7 @@ end
 -- MAIN
 --------------------------------------------------
 loadToggleSettings()
+loadPersistentToggleStates()
 loadKickableSnapshot()
 scanSkills()
 applyAutoBulkEdit()
