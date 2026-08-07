@@ -321,6 +321,7 @@ local WEAPON_NAMES = {
     "Purifying Dagger",
     "Executioner Sword",
     "Infinity Shard",
+    "Copy",          -- ← 新增（复制技能用）
     "Copy Katana",
     "Inventory Curse",
     "Invader Kit",
@@ -335,7 +336,8 @@ local WEAPON_NAMES = {
     "Temporary Star Rage",
     "Temporary Soul Manipulation",
     "Temporary Gambler Fever",
-    "Electric"
+    "Electric",
+    "Fists"          -- ← 新增（空手状态）
 }
 
 local scannedInventoryItems = {}
