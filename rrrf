@@ -4352,6 +4352,52 @@ local function forceWhitelistSkillObtainable(skillFolder)
 end
 
 
+--------------------------------------------------
+-- 将单个技能的 Unobtainable 设为 false
+-- 必须在读取原始状态之后调用
+--------------------------------------------------
+local function setSkillUnobtainableFalse(skillFolder)
+    if not skillFolder or not skillFolder:IsA("Folder") then
+        return false
+    end
+
+    if skillFolder:GetAttribute("Unobtainable") ~= nil then
+        pcall(function()
+            skillFolder:SetAttribute("Unobtainable", false)
+        end)
+    end
+
+    local handledObject = false
+
+    for _, child in ipairs(skillFolder:GetChildren()) do
+        if normalizeKey(child.Name)
+            == normalizeKey("Unobtainable")
+        then
+            if child:IsA("BoolValue") then
+                child.Value = false
+                handledObject = true
+            elseif child:IsA("StringValue") then
+                child.Value = "false"
+                handledObject = true
+            elseif child:IsA("NumberValue")
+                or child:IsA("IntValue")
+            then
+                child.Value = 0
+                handledObject = true
+            end
+        end
+    end
+
+    if not handledObject then
+        local newValue = Instance.new("BoolValue")
+        newValue.Name = "Unobtainable"
+        newValue.Value = false
+        newValue.Parent = skillFolder
+    end
+
+    return true
+end
+
 
 --------------------------------------------------
 -- SKILL SCAN
@@ -4372,52 +4418,29 @@ for _, skillFolder in ipairs(skillsFolder:GetChildren()) do
     if skillFolder:IsA("Folder") then
         local skillName = skillFolder.Name
 
-        local isWhitelisted =
+       local isWhitelisted =
             inWhitelist(skillName)
 
-        if isWhitelisted then
-            forceWhitelistSkillObtainable(skillFolder)
-        end
-
-        local currentUnobtainable
-
-        if isWhitelisted then
-            currentUnobtainable = false
-        else
-            currentUnobtainable =
-                getValue(skillFolder, "Unobtainable") == true
-        end
-
-        local attributeSnapshot =
-            skillFolder:GetAttribute("JJI_OriginalUnobtainable")
-
-        local originalUnobtainable =
-            currentUnobtainable
-            or attributeSnapshot == true
-            or originalKickableSkills[skillName] == true
+        -- 这里不再修改属性。
+        -- 必须先读到修改前的真实值。
+        local currentUnobtainable =
+            getValue(skillFolder, "Unobtainable") == true
 
         local forceKickable =
             FORCE_KICKABLE_SKILLS[skillName] == true
 
+        -- Kickable 只依据本次扫描读到的真实值。
+        -- 不再读取 JJI_OriginalUnobtainable 属性，
+        -- 也不再读取 originalKickableSkills 快照，
+        -- 避免属性被改成 false 后旧记录永久污染显示。
         local shouldMark =
-            forceKickable
-            or (originalUnobtainable and not isWhitelisted)
+            not isWhitelisted
+            and (currentUnobtainable or forceKickable)
 
-        if shouldMark
-            and originalKickableSkills[skillName] ~= true
-        then
-            originalKickableSkills[skillName] = true
-            snapshotChanged = true
-        end
+        local originalUnobtainable = currentUnobtainable
 
-        if attributeSnapshot == nil then
-            pcall(function()
-                skillFolder:SetAttribute(
-                    "JJI_OriginalUnobtainable",
-                    originalUnobtainable
-                )
-            end)
-        end
+        
+
 
         local skillData = {
             name = skillName,
@@ -4448,6 +4471,10 @@ for _, skillFolder in ipairs(skillsFolder:GetChildren()) do
 
         table.insert(scannedSkills, skillData)
         skillMap[skillName] = skillData
+
+        -- 界面状态已保存完毕，现在修改实际属性。
+        -- 所有技能都设为 false，不再只处理白名单。
+        setSkillUnobtainableFalse(skillFolder)
     end
 end
 
@@ -10616,7 +10643,43 @@ end
 --------------------------------------------------
 loadToggleSettings()
 loadPersistentToggleStates()
-loadKickableSnapshot()
+--------------------------------------------------
+-- 旧快照与旧属性已被污染，不再参与 Kickable 判定。
+-- 这里主动清理，避免其他功能读到错误数据。
+--------------------------------------------------
+table.clear(originalKickableSkills)
+
+if type(isfile) == "function"
+    and type(delfile) == "function"
+    and isfile(KICKABLE_SNAPSHOT_FILE)
+then
+    pcall(delfile, KICKABLE_SNAPSHOT_FILE)
+end
+
+do
+    local skillsFolder =
+        ReplicatedStorage:FindFirstChild("Skills")
+
+    if skillsFolder then
+        for _, skillFolder in ipairs(
+            skillsFolder:GetChildren()
+        ) do
+            if skillFolder:IsA("Folder")
+                and skillFolder:GetAttribute(
+                    "JJI_OriginalUnobtainable"
+                ) ~= nil
+            then
+                pcall(function()
+                    skillFolder:SetAttribute(
+                        "JJI_OriginalUnobtainable",
+                        nil
+                    )
+                end)
+            end
+        end
+    end
+end
+
 scanSkills()
 applyAutoBulkEdit()
 scanInnates()
