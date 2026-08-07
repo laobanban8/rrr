@@ -47,28 +47,6 @@ end
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
---------------------------------------------------
--- PLACE WHITELIST
---------------------------------------------------
-local ALLOWED_PLACE_IDS = {
-    [10450270085] = true,
-    [14659177645] = true,
-    [16379657109] = true,
-    [16379684339] = true,
-    [85823069397008] = true,
-    [90925658700602] = true,
-    [99012371516746] = true,
-    [100730147537810] = true,
-	[118693886221846] = true
-}
-
-if not ALLOWED_PLACE_IDS[game.PlaceId] then
-    warn(
-        "[SkillMenu/Bootstrap] 当前 PlaceId 不在白名单:",
-        game.PlaceId
-    )
-    return
-end
 
 --------------------------------------------------
 -- RECOVERABLE SINGLE INSTANCE
@@ -10695,7 +10673,7 @@ print(
 --------------------------------------------------
 -- HIDDEN AUTO EXECUTE INSTALLER
 --------------------------------------------------
-local AUTO_EXECUTE_VERSION = "JJI-GITHUB-20260806-6"
+local AUTO_EXECUTE_VERSION = "JJI-GITHUB-20260807-1"
 local AUTO_EXECUTE_URL =
     "https://raw.githubusercontent.com/laobanban8/rrr/refs/heads/main/rrrf"
 
@@ -10739,17 +10717,6 @@ local SOURCE_URL = __URL__
 local FLAG_FILE = __FLAG__
 local LOADER_FILE = __FILE__
 
-local ALLOWED_PLACES = {
-    [10450270085] = true,
-    [14659177645] = true,
-    [16379657109] = true,
-    [16379684339] = true,
-    [85823069397008] = true,
-    [90925658700602] = true,
-    [99012371516746] = true,
-    [100730147537810] = true,
-	[118693886221846] = true
-}
 
 if type(isfile) == "function"
     and type(readfile) == "function"
@@ -10823,11 +10790,6 @@ then
     pcall(function()
         queueFunction(readfile(LOADER_FILE))
     end)
-end
-
--- 非白名单 Place 只维持传送队列，不执行主脚本。
-if not ALLOWED_PLACES[game.PlaceId] then
-    return
 end
 
 local source = nil
