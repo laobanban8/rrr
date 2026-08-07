@@ -2729,74 +2729,85 @@ function giveWeaponToBackpack(weaponName)
 end
 
 function toggleManualWeapon(weaponName)
-    if type(weaponName) ~= "string" or weaponName == "" then
+    if type(weaponName) ~= "string"
+        or weaponName == ""
+    then
         return false, "invalid_name"
     end
 
-    --------------------------------------------------
-    -- 已由左键添加且仍然存在：再次点击时删除
-    --------------------------------------------------
-    local existingTool = manualWeaponTools[weaponName]
-
-    if existingTool and existingTool.Parent then
-        existingTool:Destroy()
-        manualWeaponTools[weaponName] = nil
-        return true, "removed"
-    end
-
-    manualWeaponTools[weaponName] = nil
-
-    --------------------------------------------------
-    -- 恢复可能因 UI 重建而丢失的引用
-    --------------------------------------------------
     local lp = Players.LocalPlayer
     if not lp then
         return false, "missing_player"
     end
 
-    local containers = {
-        lp:FindFirstChild("Backpack"),
-        lp.Character
-    }
+    local containers = {}
+    local addedContainers = {}
 
-    local objects = workspace:FindFirstChild("Objects")
-    local characters = objects
-        and objects:FindFirstChild("Characters")
-    local customCharacter = characters
-        and characters:FindFirstChild(lp.Name)
-
-    if customCharacter then
-        table.insert(containers, customCharacter)
+    local function addContainer(container)
+        if container and not addedContainers[container] then
+            addedContainers[container] = true
+            table.insert(containers, container)
+        end
     end
 
+    -- Roblox 标准装备栏和标准角色。
+    addContainer(lp:FindFirstChild("Backpack"))
+    addContainer(lp.Character)
+
+    -- 游戏使用的自定义角色路径。
+    local objects = workspace:FindFirstChild("Objects")
+    local characters =
+        objects and objects:FindFirstChild("Characters")
+    local customCharacter =
+        characters and characters:FindFirstChild(lp.Name)
+
+    addContainer(customCharacter)
+
+    --------------------------------------------------
+    -- 已存在同名装备：无论是不是脚本添加的都删除
+    --------------------------------------------------
+    local matchingTools = {}
+
     for _, container in ipairs(containers) do
-        if container then
-            for _, child in ipairs(container:GetChildren()) do
-                if child:IsA("Tool")
-                    and child:GetAttribute("JJI_ManualWeapon") == true
-                    and child:GetAttribute("JJI_ManualWeaponName") == weaponName
-                then
-                    child:Destroy()
-                    return true, "removed"
-                end
+        for _, child in ipairs(container:GetChildren()) do
+            if child:IsA("Tool")
+                and child.Name == weaponName
+            then
+                table.insert(matchingTools, child)
             end
         end
     end
 
+    if #matchingTools > 0 then
+        for _, tool in ipairs(matchingTools) do
+            if tool and tool.Parent then
+                tool:Destroy()
+            end
+        end
+
+        manualWeaponTools[weaponName] = nil
+        return true, "removed", #matchingTools
+    end
+
     --------------------------------------------------
-    -- 不存在：添加到背包并标记为手动添加
+    -- 装备栏中不存在：添加一个新装备
     --------------------------------------------------
-    local added, tool = giveWeaponToBackpack(weaponName)
+    local added, tool =
+        giveWeaponToBackpack(weaponName)
 
     if not added or not tool then
         return false, "add_failed"
     end
 
     tool:SetAttribute("JJI_ManualWeapon", true)
-    tool:SetAttribute("JJI_ManualWeaponName", weaponName)
+    tool:SetAttribute(
+        "JJI_ManualWeaponName",
+        weaponName
+    )
+
     manualWeaponTools[weaponName] = tool
 
-    return true, "added"
+    return true, "added", 1
 end
 
 function giveItemToInventory(itemName)
@@ -4834,6 +4845,133 @@ end
 local chantingCreatedByScript = nil
 local statNodesCreatedByScript = {}
 
+--------------------------------------------------
+-- MAXIMUM TECHNIQUE / DOMAIN EXPANSION
+--------------------------------------------------
+local USEFUL_TEACHABLE_NAMES = {
+    "Maximum Technique",
+    "Domain Expansion"
+}
+
+local USEFUL_TEACHABLE_NAME_SET = {
+    ["Maximum Technique"] = true,
+    ["Domain Expansion"] = true
+}
+
+local USEFUL_TEACHABLE_ATTRIBUTE =
+    "JJI_UsefulThingCreated"
+
+local usefulThingEnabled = false
+
+local function getUsefulTeachablesFolder(createIfMissing)
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer then
+        return nil, "未找到 LocalPlayer"
+    end
+
+    local replicatedData =
+        localPlayer:FindFirstChild("ReplicatedData")
+        or localPlayer:WaitForChild("ReplicatedData", 3)
+
+    if not replicatedData then
+        return nil, "未找到 ReplicatedData"
+    end
+
+    local teachables =
+        replicatedData:FindFirstChild("teachables")
+
+    if teachables and not teachables:IsA("Folder") then
+        return nil, "teachables 不是 Folder"
+    end
+
+    if not teachables and createIfMissing then
+        teachables = Instance.new("Folder")
+        teachables.Name = "teachables"
+        teachables.Parent = replicatedData
+    end
+
+    return teachables
+end
+
+local function syncUsefulThingState()
+    usefulThingEnabled = false
+
+    local teachables = getUsefulTeachablesFolder(false)
+    if not teachables then
+        return false
+    end
+
+    for _, child in ipairs(teachables:GetChildren()) do
+        if USEFUL_TEACHABLE_NAME_SET[child.Name]
+            and child:IsA("BoolValue")
+            and child:GetAttribute(
+                USEFUL_TEACHABLE_ATTRIBUTE
+            ) == true
+        then
+            usefulThingEnabled = true
+            break
+        end
+    end
+
+    return usefulThingEnabled
+end
+
+local function setUsefulThingEnabled(enabled)
+    enabled = enabled == true
+
+    local teachables, folderError =
+        getUsefulTeachablesFolder(enabled)
+
+    if not teachables then
+        if not enabled and folderError == nil then
+            usefulThingEnabled = false
+            return true, 0
+        end
+
+        return false, folderError or "未找到 teachables"
+    end
+
+    local changedCount = 0
+
+    if enabled then
+        for _, valueName in ipairs(
+            USEFUL_TEACHABLE_NAMES
+        ) do
+            -- 只要原本存在同名对象，就完全不修改它。
+            if not teachables:FindFirstChild(valueName) then
+                local value = Instance.new("BoolValue")
+                value.Name = valueName
+                value.Value = true
+                value:SetAttribute(
+                    USEFUL_TEACHABLE_ATTRIBUTE,
+                    true
+                )
+                value.Parent = teachables
+                changedCount += 1
+            end
+        end
+
+        usefulThingEnabled = true
+        return true, changedCount
+    end
+
+    -- 仅删除脚本创建并带标记的 BoolValue。
+    for _, child in ipairs(teachables:GetChildren()) do
+        if USEFUL_TEACHABLE_NAME_SET[child.Name]
+            and child:IsA("BoolValue")
+            and child:GetAttribute(
+                USEFUL_TEACHABLE_ATTRIBUTE
+            ) == true
+        then
+            child:Destroy()
+            changedCount += 1
+        end
+    end
+
+    usefulThingEnabled = false
+    return true, changedCount
+end
+
 local function setChantingEnabled(enabled)
     chantingEnabled = enabled == true
     local statNodes = getStatNodesFolder()
@@ -5739,6 +5877,64 @@ local autoChantBtn = createToggle(autoFrame, "Auto Chant(WIP)", autoOptions.Chan
     local sequenceEditorCorner = Instance.new("UICorner")
     sequenceEditorCorner.CornerRadius = UDim.new(0, 5)
     sequenceEditorCorner.Parent = sequenceEditorButton
+
+	syncUsefulThingState()
+
+local usefulThingButton = Instance.new("TextButton")
+usefulThingButton.Name = "UsefulThingToggleButton"
+usefulThingButton.Size = UDim2.fromOffset(190, 28)
+usefulThingButton.Position = UDim2.fromOffset(402, 4)
+usefulThingButton.TextColor3 = COLOR_WHITE
+usefulThingButton.Font = Enum.Font.GothamBold
+usefulThingButton.TextSize = 12
+usefulThingButton.AutoButtonColor = false
+usefulThingButton.Parent = autoFrame
+
+local usefulThingCorner = Instance.new("UICorner")
+usefulThingCorner.CornerRadius = UDim.new(0, 5)
+usefulThingCorner.Parent = usefulThingButton
+
+local function refreshUsefulThingButton()
+    usefulThingButton.Text =
+        "一个可能有用的东西: "
+        .. (usefulThingEnabled and "ON" or "OFF")
+
+    usefulThingButton.BackgroundColor3 =
+        usefulThingEnabled
+        and COLOR_GREEN
+        or COLOR_BTN_BG
+end
+
+refreshUsefulThingButton()
+
+usefulThingButton.MouseButton1Click:Connect(function()
+    if not usefulThingButton.Active then
+        return
+    end
+
+    usefulThingButton.Active = false
+
+    local ok, result = setUsefulThingEnabled(
+        not usefulThingEnabled
+    )
+
+    if ok then
+        refreshUsefulThingButton()
+    else
+        warn("[UsefulThing] 切换失败:", result)
+        usefulThingButton.Text = "切换失败"
+        usefulThingButton.BackgroundColor3 = COLOR_RED
+    end
+
+    task.delay(0.7, function()
+        if usefulThingButton
+            and usefulThingButton.Parent
+        then
+            usefulThingButton.Active = true
+            refreshUsefulThingButton()
+        end
+    end)
+end)
 
     --------------------------------------------------
     -- 第二排：持续释放
