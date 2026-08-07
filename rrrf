@@ -1126,6 +1126,52 @@ AgilityVial
 LuckVial
 FocusVial
 DamageVial
+Lock In
+RecordDamage
+ExchangeBoss
+MoveCD
+ElectricNatureEffect
+GambleUser
+FlamingNatureEffect
+SparksCombo1
+Wet
+BlackFlashFocusState
+SparksFocusGain
+DivergentFistBuff
+DivergentFistBuffHalo
+Confiscated
+Guardbroken
+CursedEnergyPowerup
+SparksCombo2
+SparksCombo3
+Flaming
+BlackFlashPowerup
+EmoteSlowed
+EmoteLocked
+DismemberLeft Arm
+SlowRCTHealing
+Tokyo
+ExorcismBoss
+ConcussiveNatureEffect
+SuperBurning
+FocusedCDState
+RCTCancel
+Electrified
+MythicalBeastAmber
+SecondPhase
+DismemberRight Arm
+Convicted
+Prosecutor
+AIDisabled
+StrengthPowerup
+RaijinDomainUser
+SuperElectrified
+CursedToolPowerup
+DisableDomain
+TaijutsuDisabled
+Disarmed
+SoulKingSparks
+Acid
 ]]
 
 local scannedStatuses = {}
