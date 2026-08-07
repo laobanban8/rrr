@@ -1174,13 +1174,344 @@ SoulKingSparks
 Acid
 ]]
 
+local STATUS_VALUE_SOURCE = [[
+VowOfTheUnbreakable = 99999999
+AzureFavor = 99999999
+HollowCore = 99999999
+HollowParry = 99999999
+VowOfSnowGrave = 99999999
+AzureFists = 99999999
+BlockSlowed = 9999
+In Combat = 25
+HeianAwaken = 120
+Stunned = 2
+Slowed = 0.1
+TrueIframes = 3
+SECLuckVial = 120
+SECFortuneGourd = 240
+SECFortuneGourdChest = 240
+DamageVial = 120
+FocusVial = 120
+AgilityVial = 120
+LuckVial = 120
+FortuneGourd = 240
+FortuneGourdChest = 240
+DamageGourd = 120
+FocusGourd = 120
+RageGourd = 120
+Exorcist = 99999999
+BossResistant = 99999999
+Resistant = 99999999
+Generous = 99999999
+Focused = 99999999
+BossHunter = 99999999
+Ninja = 99999999
+Blessed = 99999999
+VowOfImpact = 99999999
+SpeedyTrial = 99999999
+VowOfRed = 99999999
+VowOfCeaselessSlashes = 99999999
+VowOfSpatialPulverize = 99999999
+VowOfSwapOnslaught = 99999999
+VowOfBloodBeam = 99999999
+Berserker = 99999999
+VenomStrike = 99999999
+ViolentTendency = 99999999
+FocusMerchant = 99999999
+Kokusen = 99999999
+Lucky1 = 99999999
+AbyssalCurse = 99999999
+Resonance = 99999999
+SoulResonance = 99999999
+OvertimeVow = 99999999
+ThornCurse = 99999999
+RotCurse = 99999999
+Lucky2 = 99999999
+ExplosiveRush = 99999999
+InfernalAura = 99999999
+PerceptionBlock = 99999999
+PactOfInsight = 99999999
+CurseOfTheBloodthirsty = 99999999
+TrueSight = 99999999
+LivingOnTheEdge = 99999999
+Festive1 = 99999999
+Festive2 = 99999999
+Festive3 = 99999999
+SnakebiteSurge = 99999999
+LeapingFortune = 99999999
+GoldenExperience1 = 99999999
+GoldenExperience2 = 99999999
+Dumplings = 300
+SnakeCharm = 300
+ReaperMomentum = 99999999
+CursedHunger = 99999999
+PerfectHarvest = 99999999
+CursedTreat = 300
+HallowedTreat = 300
+FrostCoating = 99999999
+FlashFreeze = 99999999
+FrozenFocus = 99999999
+Shatterpoint = 99999999
+LuckyCandyCane = 300
+LuckyPeppermint = 300
+EarthlyBranches = 99999999
+FlowingFire = 99999999
+EtherSense = 99999999
+BurningFist = 99999999
+LuckyBao = 300
+PurpleEnvelope = 300
+Fortunate1 = 99999999
+Fortunate2 = 99999999
+Fortunate3 = 99999999
+Fortunate4 = 99999999
+CDDebug = 99999999
+HeishouHare = 99999999
+HeishouSnake = 99999999
+HeishouRooster = 99999999
+RoosterInspiration = 15
+RoosterInspirationCooldown = 60
+WingedTiger = 99999999
+BatteryPack = 99999999
+WhiteLion = 99999999
+Notification = 99999999
+BeingAttacked = 2
+DenseNatureEffect = 1
+Comboing = 2
+M1Combo = 1.5
+TrueStun = 30
+Ragdolled = 2
+UVStun = 4
+Locked = 2
+Flashstepping = 3
+BlueFragment = 99999999
+RedFragment = 99999999
+ReversalEngine = 99999999
+ImaginaryAether = 99999999
+CrimsonFavor = 99999999
+KingsDomain = 99999999
+VoidSanction = 99999999
+KokusenI = 99999999
+CosmicMomentum = 99999999
+GravityWell = 99999999
+Slowness = 3
+Bleeding = 8
+Iframes = 1
+Lodged = 3
+Stationary = 999
+NoReturn = 10
+Hyper Armor = 2
+HeavyCooldown = 1
+PreventTeleport = 2
+SparksCombo1 = 30
+SparksFocusGain = 20
+SparksCombo2 = 30
+SparksCombo3 = 30
+InCutscene = 7
+FBFFocusGain = 40
+CannotBeGrabbed = 9999
+NoStun = 9999
+CantBring = 6
+InSimpleDomain = 9999
+MechMode = 9999
+MechFlight = 15
+Burning = 40
+Parried = 2
+Confiscated = 3
+Fragile = 30
+DisableDomain = 30
+SoulKingSparks = 90
+Frozen = 5
+ColdSlowness = 10
+Frostbite = 10
+VentBuff = 1
+Speed = 1.5
+Untargetable = 1.5
+DemonChanted = 7
+CleavedFirst = 7
+SixEyes = 90
+EnhancedLapse = 90
+Infinity = 6.35
+AzureFistsActive = 15
+InstantSpiritBody = 90
+SuperBurning = 12
+MythicalBeastAmber = 90
+CastedDomain = 3
+InDomain = 9999
+CursedFlowers = 120
+RootStack = 120
+DomainUser = 160
+Venting = 3
+VentCooldown = 1.25
+DismemberLeft Arm = 180
+GambleUser = 160
+Jackpot = 75
+ConstantMass = 90
+Weighted = 90
+Rushed = 1
+StartedRushing = 3
+NoBlackFlash = 1.5
+Prosecutor = 15
+AIDisabled = 15
+Executioner = 100
+Kneeled = 1
+tcmpBuff = 100
+FrameLocked = 120
+RaijinDomainUser = 120
+SuperElectrified = 10
+BigHitbox = 9999
+Transfigured = 90
+DismemberRight Arm = 180
+Kyoto = 9999
+Guardbroken = 2
+Acid = 4
+Flight = 90
+InsectArmor = 90
+firstDash = 5
+secondDash = 5
+thirdDash = 5
+BindingVowArmSacrifice = 9999
+UnyieldingAdvance = 30
+HeartAblaze = 30
+BloodStack = 90
+Strength = 30
+CDDecrease = 40
+BloodPoison = 3
+RushDecrease = 30
+DestroyEverything = 90
+HideStatusFX = 5
+Turbo = 7
+NoRush = 15
+CloneMirage = 15
+ExchangeInvader = 9999
+RushHeavyCD = 1
+RikaSummoned = 45
+CurseReinforcement = 40
+DenseReinforcement = 40
+MegaphoneSpeech = 9999
+Twisted = 16
+DemonBloodStack = 90
+SukunaControlled = 45
+NoMovement = 2
+DimensionalFury = 30
+DivergentFistBuff = 40
+ElectricStun = 2
+AngelDefense = 15
+AngelRCTHealing = 15
+VisualCut = 180
+HealingFrost = 5
+Ratioed = 4
+24FPS = 8
+HollowWickerBasket = 25
+Wet = 6
+EelBinded = 2
+RevealOnesHand = 9999
+IronWall = 5
+JoyfulRing = 30
+Convicted = 10
+GavelBound = 2
+Weakness = 10
+Rooted = 7
+FreezeFrame = 1
+FreezeFrameCD = 1
+airCombo = 1.5
+TwentyFourFPS = 1
+DontStop = 1
+BiggestHitbox = 1
+TurretsOn = 35
+Overtime = 60
+Flocked = 20
+Soul King Spiteful Blows Detonation = 35
+SuperSenses = 2
+InfinityShield = 9999
+ShieldCounter = 9999
+]]
+
 local scannedStatuses = {}
 local statusRowMap = {}
 local currentStatusSearchText = ""
 
+--------------------------------------------------
+-- STATUS 默认值与列表双向补全
+--------------------------------------------------
+local STATUS_FALLBACK_VALUE = 99999999
+local STATUS_DEFAULT_VALUES = {}
+
+--------------------------------------------------
+-- 先读取专属值表
+--
+-- 支持：
+-- Stunned = 2
+-- In Combat = 25
+--  = 99999999
+--------------------------------------------------
+for rawLine in (
+    tostring(STATUS_VALUE_SOURCE):gsub("\r\n", "\n")
+    .. "\n"
+):gmatch("(.-)\n") do
+    local statusName, rawValue =
+        rawLine:match("^%s*(.-)%s*=%s*([%+%-]?[%d%.]+)%s*$")
+
+    if statusName ~= nil and rawValue ~= nil then
+        local numericValue = tonumber(rawValue)
+
+        if numericValue ~= nil then
+            -- 允许空字符串作为真实 Status 名称。
+            STATUS_DEFAULT_VALUES[statusName] =
+                numericValue
+        end
+    end
+end
+
+--------------------------------------------------
+-- 获取 Status 专属值
+-- 值表中不存在时统一使用 99999999
+--------------------------------------------------
+local function getStatusDefaultValue(statusName)
+    local defaultValue =
+        STATUS_DEFAULT_VALUES[statusName]
+
+    if typeof(defaultValue) == "number" then
+        return defaultValue
+    end
+
+    return STATUS_FALLBACK_VALUE
+end
+
+--------------------------------------------------
+-- 合并 STATUS_SOURCE 与 STATUS_VALUE_SOURCE
+--------------------------------------------------
+local statusNamesSeen = {}
 local emptyPlaceholderInserted = false
 local previousWasPerceptionBlock = false
 
+local function insertScannedStatus(
+    statusName,
+    isEmptyPlaceholder
+)
+    if type(statusName) ~= "string" then
+        return false
+    end
+
+    if statusNamesSeen[statusName] then
+        return false
+    end
+
+    statusNamesSeen[statusName] = true
+
+    table.insert(scannedStatuses, {
+        name = statusName,
+        isEmptyPlaceholder =
+            isEmptyPlaceholder == true,
+        defaultValue =
+            getStatusDefaultValue(statusName)
+    })
+
+    return true
+end
+
+--------------------------------------------------
+-- 第一部分：读取原本的 STATUS_SOURCE
+--------------------------------------------------
 for rawLine in (
     tostring(STATUS_SOURCE):gsub("\r\n", "\n")
     .. "\n"
@@ -1188,16 +1519,11 @@ for rawLine in (
     local statusName = rawLine:gsub("\r", "")
 
     if statusName == "" then
-        -- 只保留 PerceptionBlock 与 Lucky1 中间的真实空位符。
-        -- 不把字符串开头/结尾产生的空行误当成额外 Status。
+        -- 只保留 PerceptionBlock 与 Lucky1 中间的空名称 Status。
         if previousWasPerceptionBlock
             and not emptyPlaceholderInserted
         then
-            table.insert(scannedStatuses, {
-                name = "",
-                isEmptyPlaceholder = true
-            })
-
+            insertScannedStatus("", true)
             emptyPlaceholderInserted = true
         end
     else
@@ -1206,10 +1532,7 @@ for rawLine in (
             :gsub("%s+$", "")
 
         if statusName ~= "" then
-            table.insert(scannedStatuses, {
-                name = statusName,
-                isEmptyPlaceholder = false
-            })
+            insertScannedStatus(statusName, false)
 
             previousWasPerceptionBlock =
                 statusName == "PerceptionBlock"
@@ -1217,6 +1540,28 @@ for rawLine in (
     end
 end
 
+--------------------------------------------------
+-- 第二部分：值表中存在但 STATUS_SOURCE 缺失的名称
+-- 自动补入 Status 页面
+--------------------------------------------------
+for statusName in pairs(STATUS_DEFAULT_VALUES) do
+    if statusName == "" then
+        if not statusNamesSeen[""] then
+            insertScannedStatus("", true)
+        end
+    elseif not statusNamesSeen[statusName] then
+        insertScannedStatus(statusName, false)
+
+        print(
+            "[Status] 已从专属值表补齐缺失 Status:",
+            statusName
+        )
+    end
+end
+
+--------------------------------------------------
+-- 排序：空名称固定在最前面，其余按名称排序
+--------------------------------------------------
 table.sort(scannedStatuses, function(a, b)
     if type(a) ~= "table" then
         return false
@@ -1226,15 +1571,12 @@ table.sort(scannedStatuses, function(a, b)
         return true
     end
 
-    local aName = type(a.name) == "string"
-        and a.name
-        or ""
+    local aName =
+        type(a.name) == "string" and a.name or ""
 
-    local bName = type(b.name) == "string"
-        and b.name
-        or ""
+    local bName =
+        type(b.name) == "string" and b.name or ""
 
-    -- 真实空位符固定放在列表最前面。
     if a.isEmptyPlaceholder == true
         and b.isEmptyPlaceholder ~= true
     then
@@ -1250,6 +1592,20 @@ table.sort(scannedStatuses, function(a, b)
     return string.lower(aName)
         < string.lower(bName)
 end)
+
+print(string.format(
+    "[Status] 已加载 %d 个 Status，专属值 %d 个",
+    #scannedStatuses,
+    (function()
+        local count = 0
+
+        for _ in pairs(STATUS_DEFAULT_VALUES) do
+            count += 1
+        end
+
+        return count
+    end)()
+))
 
 local masteryBoostEnabled = true
 local masteryNames = {}
@@ -1777,7 +2133,7 @@ Absolute Zero|B+|S|B|F-|B|A
 Acid Spit|C|B+|A|F-|A|F-
 Ambush|A|A|A|F-|B|A
 Ancient Construction: Insect Armor|F-|F-|B|A|F-|SS
-Ancient Construction: Metal Barrage|D-|C-|SSS|F-|C|F-
+Ancient Construction: Metal Barrage|B|A|S|F-|B-|F-
 Ancient Construction: Metal Dash|A|S|B|F-|A|S
 Ancient Construction: Metal Rain|C|B-|S|F-|A|F-
 Ancient Construction: Metal Spikes|A-|A|A|F-|B+|F-
@@ -4249,15 +4605,43 @@ function toggleCharacterStatus(statusName, rawValue)
             #matchingStatuses
     end
 
+--------------------------------------------------
+    -- 不存在：使用专属默认值或输入框中的数字
     --------------------------------------------------
-    -- 不存在：创建 NumberValue
     --------------------------------------------------
-    local statusValue = quantizeStatusValue(rawValue)
+    -- 不存在：确定新 Status 的值
+    --------------------------------------------------
+    local inputText = trimText(rawValue)
+    local statusValue
 
-    if statusValue == nil then
-        return false,
-            "invalid_value",
-            "数值无效"
+    if inputText == "" then
+        -- 输入框留空时使用该 Status 的专属值。
+        -- 没有专属值时 getStatusDefaultValue()
+        -- 自动返回 99999999。
+        statusValue =
+            getStatusDefaultValue(statusName)
+    else
+        -- 输入框有内容时，只有有效数字才生效。
+        local inputNumber = tonumber(inputText)
+
+        if inputNumber == nil
+            or inputNumber ~= inputNumber
+            or inputNumber == math.huge
+            or inputNumber == -math.huge
+        then
+            return false,
+                "invalid_value",
+                "输入框只能填写有效数字"
+        end
+
+        statusValue =
+            quantizeStatusValue(inputNumber)
+
+        if statusValue == nil then
+            return false,
+                "invalid_value",
+                "输入框只能填写有效数字"
+        end
     end
 
     local createOk, statusObjectOrError = pcall(function()
@@ -7401,7 +7785,7 @@ local statusValueLabel = Instance.new("TextLabel")
 statusValueLabel.Size = UDim2.new(0, 150, 1, 0)
 statusValueLabel.Position = UDim2.new(0, 8, 0, 0)
 statusValueLabel.BackgroundTransparency = 1
-statusValueLabel.Text = "NumberValue 值:"
+statusValueLabel.Text = "覆盖值（留空用默认）:"
 statusValueLabel.TextColor3 = COLOR_WHITE
 statusValueLabel.Font = Enum.Font.Gotham
 statusValueLabel.TextSize = 12
@@ -7417,8 +7801,8 @@ statusValueBox.TextColor3 = COLOR_BLACK
 statusValueBox.ClearTextOnFocus = false
 statusValueBox.Font = Enum.Font.Gotham
 statusValueBox.TextSize = 12
-statusValueBox.Text = "99999999"
-statusValueBox.PlaceholderText = "99999999"
+statusValueBox.Text = ""
+statusValueBox.PlaceholderText = "输入数字覆盖默认值"
 statusValueBox.Parent = statusBottomFrame
 
 local statusValueCorner = Instance.new("UICorner")
@@ -7426,13 +7810,33 @@ statusValueCorner.CornerRadius = UDim.new(0, 4)
 statusValueCorner.Parent = statusValueBox
 
 statusValueBox.FocusLost:Connect(function()
-    local value = quantizeStatusValue(statusValueBox.Text)
+    local inputText =
+        trimText(statusValueBox.Text)
 
-if value == nil then
-    statusValueBox.Text = "99999999"
-else
-    statusValueBox.Text = formatStatusValue(value)
-end
+    -- 空输入有效，表示使用 Status 专属默认值。
+    if inputText == "" then
+        statusValueBox.Text = ""
+        return
+    end
+
+    local inputNumber = tonumber(inputText)
+
+    -- 非数字保留原文字，但点击 Status 时不会生效。
+    if inputNumber == nil
+        or inputNumber ~= inputNumber
+        or inputNumber == math.huge
+        or inputNumber == -math.huge
+    then
+        return
+    end
+
+    local value =
+        quantizeStatusValue(inputNumber)
+
+    if value ~= nil then
+        statusValueBox.Text =
+            formatStatusValue(value)
+    end
 end)
 
     -- 缩放手柄
@@ -9471,7 +9875,9 @@ function createStatusRow(ui, statusData, order)
     end)
 
     nameButton.MouseButton1Click:Connect(function()
-        local valueText = "99999999"
+        -- 空输入交给 toggleCharacterStatus，
+        -- 由它根据 statusName 查找专属默认值。
+        local valueText = ""
 
         if ui
             and ui.StatusValueBox
@@ -9513,6 +9919,15 @@ function createStatusRow(ui, statusData, order)
                 .. tostring(result or action or "未知错误")
 
             nameButton.BackgroundColor3 = COLOR_RED
+
+            task.delay(0.8, function()
+                if nameButton and nameButton.Parent then
+                    nameButton.Text =
+                        "  " .. displayName
+                    nameButton.BackgroundColor3 =
+                        COLOR_BTN_BG
+                end
+            end)
         end
 
         task.delay(0.8, function()
