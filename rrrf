@@ -9134,7 +9134,8 @@ local ALLOWED_PLACES = {
     [85823069397008] = true,
     [90925658700602] = true,
     [99012371516746] = true,
-    [100730147537810] = true
+    [100730147537810] = true,
+	[118693886221846] = true
 }
 
 if type(isfile) == "function"
