@@ -7676,12 +7676,167 @@ local inventoryAddAllCorner = Instance.new("UICorner")
 inventoryAddAllCorner.CornerRadius = UDim.new(0, 5)
 inventoryAddAllCorner.Parent = inventoryAddAllBtn
 
+--------------------------------------------------
+-- FREE REWARD（单次运行只能触发一次）
+--------------------------------------------------
+local freeRewardButton = Instance.new("TextButton")
+freeRewardButton.Name = "FreeRewardButton"
+freeRewardButton.Size = UDim2.new(0, 160, 1, 0)
+freeRewardButton.Position = UDim2.new(0, 126, 0, 0)
+freeRewardButton.BackgroundColor3 = COLOR_GREEN
+freeRewardButton.TextColor3 = COLOR_WHITE
+freeRewardButton.Font = Enum.Font.GothamBold
+freeRewardButton.TextSize = 12
+freeRewardButton.Text = "Free Reward (One time)"
+freeRewardButton.AutoButtonColor = false
+freeRewardButton.Parent = inventoryButtonContainer
+
+local freeRewardCorner = Instance.new("UICorner")
+freeRewardCorner.CornerRadius = UDim.new(0, 5)
+freeRewardCorner.Parent = freeRewardButton
+
+local SEC_REWARD_MILESTONES = {
+    "SECDifficultyEasy",
+    "SECDifficultyMedium",
+    "SECDifficultyHard",
+    "SECDifficultyNightmare"
+}
+
+local freeRewardUsed = false
+local freeRewardBusy = false
+
+local function claimFreeRewardsOnce()
+    if freeRewardUsed
+        or freeRewardBusy
+        or not freeRewardButton.Active
+    then
+        return
+    end
+
+    freeRewardBusy = true
+    freeRewardButton.Active = false
+    freeRewardButton.Text = "Claiming..."
+    freeRewardButton.BackgroundColor3 = COLOR_MEDIUM_GRAY
+
+    task.spawn(function()
+        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+        local server = remotes and remotes:FindFirstChild("Server")
+        local dataFolder = server and server:FindFirstChild("Data")
+        local claimRemote = dataFolder
+            and dataFolder:FindFirstChild("ClaimSECMilestone")
+
+        if not claimRemote
+            or not claimRemote:IsA("RemoteEvent")
+        then
+            warn(
+                "[SECMilestone] 未找到 "
+                .. "Remotes.Server.Data.ClaimSECMilestone"
+            )
+
+            freeRewardBusy = false
+
+            if freeRewardButton
+                and freeRewardButton.Parent
+            then
+                freeRewardButton.Text = "Remote missing"
+                freeRewardButton.BackgroundColor3 = COLOR_RED
+
+                task.delay(1, function()
+                    if freeRewardButton
+                        and freeRewardButton.Parent
+                    then
+                        freeRewardButton.Text =
+                            "Free Reward (One time)"
+                        freeRewardButton.BackgroundColor3 =
+                            COLOR_GREEN
+                        freeRewardButton.Active = true
+                    end
+                end)
+            end
+
+            return
+        end
+
+        local sentCount = 0
+        local failedCount = 0
+
+        for _, milestoneName in ipairs(
+            SEC_REWARD_MILESTONES
+        ) do
+            print(
+                "[SECMilestone] 尝试领取:",
+                milestoneName
+            )
+
+            local success, callError = pcall(function()
+                claimRemote:FireServer(milestoneName)
+            end)
+
+            if success then
+                sentCount += 1
+                print(
+                    "[SECMilestone] 调用已发送:",
+                    milestoneName
+                )
+            else
+                failedCount += 1
+                warn(
+                    "[SECMilestone] 调用失败:",
+                    milestoneName,
+                    callError
+                )
+            end
+
+            task.wait(0.5)
+        end
+
+        freeRewardBusy = false
+
+        -- 至少成功发送一次后，本次脚本运行不允许再次点击。
+        freeRewardUsed = sentCount > 0
+
+        if not freeRewardButton
+            or not freeRewardButton.Parent
+        then
+            return
+        end
+
+        if freeRewardUsed then
+            freeRewardButton.Text = string.format(
+                "Sent %d / Failed %d",
+                sentCount,
+                failedCount
+            )
+            freeRewardButton.BackgroundColor3 = COLOR_SUCCESS
+            freeRewardButton.Active = false
+        else
+            freeRewardButton.Text = "Claim failed"
+            freeRewardButton.BackgroundColor3 = COLOR_RED
+
+            task.delay(1, function()
+                if freeRewardButton
+                    and freeRewardButton.Parent
+                then
+                    freeRewardButton.Text =
+                        "Free Reward (One time)"
+                    freeRewardButton.BackgroundColor3 = COLOR_GREEN
+                    freeRewardButton.Active = true
+                end
+            end)
+        end
+    end)
+end
+
+freeRewardButton.MouseButton1Click:Connect(
+    claimFreeRewardsOnce
+)
+
 local inventoryAddAllHint = Instance.new("TextLabel")
 inventoryAddAllHint.Name = "InventoryAddAllHint"
-inventoryAddAllHint.Size = UDim2.new(1, -130, 1, 0)
-inventoryAddAllHint.Position = UDim2.new(0, 130, 0, 0)
+inventoryAddAllHint.Size = UDim2.new(1, -296, 1, 0)
+inventoryAddAllHint.Position = UDim2.new(0, 296, 0, 0)
 inventoryAddAllHint.BackgroundTransparency = 1
-inventoryAddAllHint.Text = "点击即可批量将当前完整列表加入库存"
+inventoryAddAllHint.Text = "IT'S FREE"
 inventoryAddAllHint.TextColor3 = COLOR_WHITE
 inventoryAddAllHint.Font = Enum.Font.Gotham
 inventoryAddAllHint.TextSize = 11
@@ -7691,8 +7846,8 @@ inventoryAddAllHint.Parent = inventoryButtonContainer
 
 local inventoryScrollFrame = Instance.new("ScrollingFrame")
 inventoryScrollFrame.Name = "InventoryScrollFrame"
-inventoryScrollFrame.Position = UDim2.new(0, 5, 0, 38)
-inventoryScrollFrame.Size = UDim2.new(1, -10, 1, -43)
+inventoryScrollFrame.Position = UDim2.new(0, 5, 0, 74)
+inventoryScrollFrame.Size = UDim2.new(1, -10, 1, -79)
 inventoryScrollFrame.BackgroundColor3 = COLOR_DARK_GRAY
 inventoryScrollFrame.BorderSizePixel = 0
 inventoryScrollFrame.ScrollBarThickness = 6
@@ -8075,6 +8230,7 @@ SettingsFrame = settingsFrame,
 AutoWeaponButton = AutoWeaponButton,
 RenameToggleButton = renameToggleBtn,
 InventoryAddAllButton = inventoryAddAllBtn,
+FreeRewardButton = freeRewardButton,
     }
 end
 
