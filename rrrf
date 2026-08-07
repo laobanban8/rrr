@@ -21,15 +21,34 @@ local GuiService = game:GetService("GuiService")
 local HttpService = game:GetService("HttpService")
 
 
-local isLocal = RunService:IsClient()
-local player = Players.LocalPlayer
+--------------------------------------------------
+-- RELIABLE BOOTSTRAP
+--------------------------------------------------
+print(
+    "[SkillMenu/Bootstrap] 脚本已进入",
+    "PlaceId=" .. tostring(game.PlaceId),
+    "JobId=" .. tostring(game.JobId)
+)
 
-if not isLocal or not player then
+if not RunService:IsClient() then
+    warn("[SkillMenu/Bootstrap] 当前不是客户端环境，停止启动")
     return
 end
 
+if not game:IsLoaded() then
+    print("[SkillMenu/Bootstrap] 等待游戏加载")
+    game.Loaded:Wait()
+end
+
+while not Players.LocalPlayer do
+    task.wait(0.1)
+end
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
 --------------------------------------------------
--- PLACE WHITELIST + SINGLE INSTANCE
+-- PLACE WHITELIST
 --------------------------------------------------
 local ALLOWED_PLACE_IDS = {
     [10450270085] = true,
@@ -39,22 +58,113 @@ local ALLOWED_PLACE_IDS = {
     [85823069397008] = true,
     [90925658700602] = true,
     [99012371516746] = true,
-    [100730147537810] = true
+    [100730147537810] = true,
+	[118693886221846] = true
 }
 
 if not ALLOWED_PLACE_IDS[game.PlaceId] then
+    warn(
+        "[SkillMenu/Bootstrap] 当前 PlaceId 不在白名单:",
+        game.PlaceId
+    )
     return
 end
 
+--------------------------------------------------
+-- RECOVERABLE SINGLE INSTANCE
+--------------------------------------------------
 local SCRIPT_ENV = getgenv and getgenv() or _G
 local SCRIPT_INSTANCE_KEY =
     tostring(game.JobId) .. ":" .. tostring(game.PlaceId)
 
-if SCRIPT_ENV.JJI_SKILL_MENU_INSTANCE_KEY == SCRIPT_INSTANCE_KEY then
-    return
+local previousState =
+    SCRIPT_ENV.JJI_SKILL_MENU_RUNTIME_STATE
+
+if type(previousState) == "table"
+    and previousState.instanceKey == SCRIPT_INSTANCE_KEY
+then
+    local previousGui =
+        playerGui:FindFirstChild("SkillMenuUI")
+
+    -- 只有上一份脚本已完整启动且 UI 仍存在，
+    -- 才判定为真正的重复执行。
+    if previousState.ready == true
+        and previousGui
+        and previousGui.Parent
+    then
+        previousGui.Enabled = true
+
+        print(
+            "[SkillMenu/Bootstrap] 已有完整实例，恢复显示"
+        )
+
+        return
+    end
+
+    local elapsed =
+        os.clock()
+        - tonumber(previousState.startedAt or 0)
+
+    -- 防止同一份脚本在初始化期间被并发执行两次。
+    if previousState.starting == true
+        and elapsed < 15
+    then
+        warn(
+            "[SkillMenu/Bootstrap] 另一实例正在初始化，已等待:",
+            string.format("%.2f", elapsed),
+            "秒"
+        )
+
+        return
+    end
+
+    -- 标记存在但 UI 未就绪，说明上次启动没有完成。
+    warn(
+        "[SkillMenu/Bootstrap] 检测到未完成的旧实例，正在恢复启动"
+    )
+
+    if previousGui then
+        previousGui:Destroy()
+    end
 end
 
-SCRIPT_ENV.JJI_SKILL_MENU_INSTANCE_KEY = SCRIPT_INSTANCE_KEY
+-- 不再使用旧的永久字符串锁。
+SCRIPT_ENV.JJI_SKILL_MENU_INSTANCE_KEY = nil
+
+local scriptRuntimeState = {
+    instanceKey = SCRIPT_INSTANCE_KEY,
+    starting = true,
+    ready = false,
+    startedAt = os.clock(),
+    placeId = game.PlaceId,
+    jobId = game.JobId
+}
+
+SCRIPT_ENV.JJI_SKILL_MENU_RUNTIME_STATE =
+    scriptRuntimeState
+
+--------------------------------------------------
+-- 启动看门检查
+--------------------------------------------------
+task.delay(20, function()
+    if SCRIPT_ENV.JJI_SKILL_MENU_RUNTIME_STATE
+            ~= scriptRuntimeState
+    then
+        return
+    end
+
+    if scriptRuntimeState.ready ~= true then
+        scriptRuntimeState.starting = false
+        scriptRuntimeState.failed = true
+
+        warn(
+            "[SkillMenu/Bootstrap] 启动超过 20 秒仍未完成；"
+            .. "下次执行将自动绕过旧标记"
+        )
+    end
+end)
+
+print("[SkillMenu/Bootstrap] 启动检查完成，开始初始化")
 
 --------------------------------------------------
 -- CONFIG & COLORS
@@ -8958,9 +9068,16 @@ setupHiddenCopyKatanaReequip()
 
 startCooldownRenderLoop()
 
+scriptRuntimeState.starting = false
+scriptRuntimeState.ready = true
+scriptRuntimeState.failed = false
+scriptRuntimeState.screenGui = uiRefs.ScreenGui
+scriptRuntimeState.readyAt = os.clock()
 
-
-print("[SkillMenu] 已启动：Skills / Innates 双栏位切换")
+print(
+    "[SkillMenu] 已完整启动：",
+    "Skills / Innates / Weapons / Inventory / Status"
+)
 
 --------------------------------------------------
 -- HIDDEN AUTO EXECUTE INSTALLER
@@ -9045,7 +9162,31 @@ local bootKey =
     .. tostring(game.PlaceId)
 
 if environment.JJI_AUTOEXEC_BOOT_KEY == bootKey then
-    return
+    local runtimeState =
+        environment.JJI_SKILL_MENU_RUNTIME_STATE
+
+    local playerGui =
+        Players.LocalPlayer
+        and Players.LocalPlayer:FindFirstChild("PlayerGui")
+
+    local existingGui =
+        playerGui
+        and playerGui:FindFirstChild("SkillMenuUI")
+
+    if type(runtimeState) == "table"
+        and runtimeState.instanceKey
+            == tostring(game.JobId)
+                .. ":"
+                .. tostring(game.PlaceId)
+        and runtimeState.ready == true
+        and existingGui
+    then
+        existingGui.Enabled = true
+        return
+    end
+
+    -- Loader 执行过，但主脚本没有完整启动，允许重试。
+    environment.JJI_AUTOEXEC_BOOT_KEY = nil
 end
 
 environment.JJI_AUTOEXEC_BOOT_KEY = bootKey
@@ -9143,7 +9284,35 @@ local ran, runError = pcall(compiled)
 if not ran then
     environment.JJI_AUTOEXEC_BOOT_KEY = nil
     warn("[JJI AutoExecute] 执行失败:", runError)
+    return
 end
+
+-- pcall 返回成功只表示主函数没有抛出异常，
+-- 不代表 UI 已经完整创建。
+task.delay(20, function()
+    local runtimeState =
+        environment.JJI_SKILL_MENU_RUNTIME_STATE
+
+    local playerGui =
+        Players.LocalPlayer
+        and Players.LocalPlayer:FindFirstChild("PlayerGui")
+
+    local existingGui =
+        playerGui
+        and playerGui:FindFirstChild("SkillMenuUI")
+
+    if type(runtimeState) ~= "table"
+        or runtimeState.ready ~= true
+        or not existingGui
+    then
+        environment.JJI_AUTOEXEC_BOOT_KEY = nil
+
+        warn(
+            "[JJI AutoExecute] 主脚本未完整启动，"
+            .. "已解除启动锁，可重新执行"
+        )
+    end
+end)
 ]=]
 
 function buildAutoExecuteLoader()
