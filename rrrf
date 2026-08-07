@@ -1609,6 +1609,129 @@ print(string.format(
     end)()
 ))
 
+local STORYLINE_RAW = {
+    { "SG_Q7_Exchange_Finished", "Storyline", 500, "???" },
+    { "SG_Q6_TheSEC_Finished", "Storyline", 500, "Exchange Event" },
+    { "SG_Q5_Confrontation_Finished", "Storyline", 480, "The Six Eyed Calamity" },
+    { "SG_Q4_RiftInvasion_Finished", "Storyline", 465, "Confrontation" },
+    { "SG_Q3_SpearFromHeaven_Finished", "Storyline", 450, "Rift Invasion" },
+    { "SG_Q2_Domain_Finished", "Storyline", 435, "The Spear from Heaven" },
+    { "SG_Q1_Maximum_Finished", "Clan Head Town5", 420, "Imaginary Demon" },
+    { "Special Grade", "Clan Head Town5", 360, "Maximum Technique" },
+    { "G1_Next_Town", "Clan Head Town5", 300, "Promotion" },
+    { "G1_Q4_CursedPrison_Finished", "Clan Head Town5", 300, "Special Grade" },
+    { "G1_Q3_SorcererKiller_Finished", "Clan Head Town5", 300, "Cursed Prison" },
+    { "G1_Q2_RotAnomaly_Finshed", "Clan Head Town5", 300, "Sorcerer Killer" },
+    { "Grade 1", "Clan Head Town5", 270, "Rotten Anomaly" },
+    { "G2_Next_Town", "Clan Head Town5", 240, "Promotion" },
+    { "G2_Q5_EerieFarm_Finished", "Clan Head Town4", 240, "Yuki Fortress" },
+    { "G2_Q4_VolcanoBoss_Finished", "Clan Head Town4", 240, "Eerie Farm" },
+    { "G2_Q3_Volcano_Finished", "Clan Head Town4", 240, "Volcano Curse Boss" },
+    { "G2_Q2_MistClear_Finished", "Clan Head Town4", 240, "Volcano Anomaly" },
+    { "Grade 2", "Clan Head Town4", 210, "Mist Quest" },
+    { "G3_Next_Town", "Clan Head Town4", 180, "Promotion" },
+    { "G3_Q4_Subway_Finished", "Clan Head Town3", 180, "Kura Camp" },
+    { "G3_Q3_Mahito_Finished", "Clan Head Town3", 180, "Tokyo Subway" },
+    { "G3_Q2_Transfigured_Finished", "Clan Head Town3", 180, "Soul Curse Boss" },
+    { "Grade 3", "Clan Head Town3", 150, "Strange Occurings" },
+    { "G4_Next_Town", "Clan Head Town3", 120, "Promotion" },
+    { "G4_Q4_Bridge_Finished", "Clan Head Town2", 120, "Numa Temple" },
+    { "G4_Q3_Dagon_Finished", "Clan Head Town2", 120, "Yasohachi Bridge" },
+    { "G4_Q2_Tsunami_Finished", "Storyline", 120, "Ocean Curse Boss" },
+    { "Grade 4", "Clan Head Town2", 90, "Whirlpool Quest" },
+    { "NS_Next_Town", "Clan Head Town2", 60, "Promotion" },
+    { "NS_Q4_FingerBearer_Finished", "Clan Head Town1", 60, "Umi Village" },
+    { "NS_Q3_SchoolInvestigation_Finished", "Clan Head Town1", 60, "Finger Bearer Boss" },
+    { "NS_Q2_RogueAmbush_Finished", "Storyline", 60, "Cursed School Quest" },
+    { "NS_Q1_BanditOutpost_Finished", "Clan Head Town1", 30, "Investigate Quest" },
+    { "CHTutorial_Finished", "Clan Head Town1", 1, "Beginner Quest" }
+};
+
+local STORYLINE_LOCATION_NAMES = {
+    ["Clan Head Town1"] = "Shjio Town",
+    ["Clan Head Town2"] = "Umi Village",
+    ["Clan Head Town3"] = "Numa Temple",
+    ["Clan Head Town4"] = "Kura Camp",
+    ["Clan Head Town5"] = "Yuki Fortress",
+    ["Storyline"] = "Storyline"
+}
+
+local storylineTasks = {}
+local storylineRowMap = {}
+
+-- 原表是高等级到低等级，因此反向构建显示列表。
+-- 从索引 2 开始，意味着名称为 ??? 的索引 1 不会显示。
+for sourceIndex = #STORYLINE_RAW, 2, -1 do
+    local sourceTask = STORYLINE_RAW[sourceIndex]
+    local nextTask = STORYLINE_RAW[sourceIndex - 1]
+    local previousTask = STORYLINE_RAW[sourceIndex + 1]
+
+    table.insert(storylineTasks, {
+        level = tonumber(sourceTask[3]) or 0,
+        taskName = tostring(sourceTask[4]),
+        location = STORYLINE_LOCATION_NAMES[sourceTask[2]]
+            or tostring(sourceTask[2]),
+        previousTaskName = previousTask
+            and tostring(previousTask[4])
+            or "Tutorial",
+        completionFlag = tostring(nextTask[1])
+    })
+end
+
+local function getStorylineProgressFolder(createIfMissing)
+    local replicatedData = player:FindFirstChild("ReplicatedData")
+        or player:WaitForChild("ReplicatedData", 3)
+
+    if not replicatedData then
+        return nil, "未找到 ReplicatedData"
+    end
+
+    local progress = replicatedData:FindFirstChild("progress")
+
+    if progress and not progress:IsA("Folder") then
+        return nil, "progress 不是 Folder"
+    end
+
+    if not progress and createIfMissing then
+        progress = Instance.new("Folder")
+        progress.Name = "progress"
+        progress.Parent = replicatedData
+    end
+
+    return progress
+end
+
+local function toggleStorylineTask(taskData)
+    local progress, folderError =
+        getStorylineProgressFolder(true)
+
+    if not progress then
+        return false, "error", folderError
+    end
+
+    local existing = progress:FindFirstChild(
+        taskData.completionFlag
+    )
+
+    if existing then
+        if not existing:IsA("BoolValue") then
+            return false,
+                "error",
+                "同名对象不是 BoolValue"
+        end
+
+        existing:Destroy()
+        return true, "removed"
+    end
+
+    local value = Instance.new("BoolValue")
+    value.Name = taskData.completionFlag
+    value.Value = true
+    value.Parent = progress
+
+    return true, "added"
+end
+
 local masteryBoostEnabled = true
 local masteryNames = {}
 local AutoWeaponEnabled = false
@@ -6413,6 +6536,21 @@ local statusTabCorner = Instance.new("UICorner")
 statusTabCorner.CornerRadius = UDim.new(0, 5)
 statusTabCorner.Parent = statusTabButton
 
+local storylineTabButton = Instance.new("TextButton")
+storylineTabButton.Name = "StorylineTabButton"
+storylineTabButton.Size = UDim2.new(0, 96, 1, 0)
+storylineTabButton.Position = UDim2.new(0, 455, 0, 0)
+storylineTabButton.BackgroundColor3 = COLOR_BTN_BG
+storylineTabButton.TextColor3 = COLOR_WHITE
+storylineTabButton.Font = Enum.Font.GothamBold
+storylineTabButton.TextSize = 12
+storylineTabButton.Text = "Storyline"
+storylineTabButton.Parent = tabBar
+
+local storylineTabCorner = Instance.new("UICorner")
+storylineTabCorner.CornerRadius = UDim.new(0, 5)
+storylineTabCorner.Parent = storylineTabButton
+
     -- 页面容器
     local contentFrame = Instance.new("Frame")
     contentFrame.Name = "ContentFrame"
@@ -7996,6 +8134,54 @@ statusValueBox.FocusLost:Connect(function()
     end
 end)
 
+--------------------------------------------------
+-- StorylinePage
+--------------------------------------------------
+local storylinePage = Instance.new("Frame")
+storylinePage.Name = "StorylinePage"
+storylinePage.Size = UDim2.new(1, 0, 1, 0)
+storylinePage.BackgroundTransparency = 1
+storylinePage.Visible = false
+storylinePage.Parent = contentFrame
+
+local storylineScrollFrame = Instance.new("ScrollingFrame")
+storylineScrollFrame.Name = "StorylineScrollFrame"
+storylineScrollFrame.Position = UDim2.new(0, 5, 0, 5)
+storylineScrollFrame.Size = UDim2.new(1, -10, 1, -48)
+storylineScrollFrame.BackgroundColor3 = COLOR_DARK_GRAY
+storylineScrollFrame.BorderSizePixel = 0
+storylineScrollFrame.ScrollBarThickness = 6
+storylineScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+storylineScrollFrame.Parent = storylinePage
+
+local storylineScrollCorner = Instance.new("UICorner")
+storylineScrollCorner.CornerRadius = UDim.new(0, 5)
+storylineScrollCorner.Parent = storylineScrollFrame
+
+local storylineLayout = Instance.new("UIListLayout")
+storylineLayout.Padding = UDim.new(0, ROW_PADDING)
+storylineLayout.SortOrder = Enum.SortOrder.LayoutOrder
+storylineLayout.Parent = storylineScrollFrame
+
+local storylinePadding = Instance.new("UIPadding")
+storylinePadding.PaddingTop = UDim.new(0, 4)
+storylinePadding.PaddingBottom = UDim.new(0, 4)
+storylinePadding.PaddingLeft = UDim.new(0, 4)
+storylinePadding.PaddingRight = UDim.new(0, 4)
+storylinePadding.Parent = storylineScrollFrame
+
+local storylineTip = Instance.new("TextLabel")
+storylineTip.Name = "StorylineTip"
+storylineTip.Size = UDim2.new(1, -10, 0, 34)
+storylineTip.Position = UDim2.new(0, 5, 1, -38)
+storylineTip.BackgroundColor3 = COLOR_MEDIUM_GRAY
+storylineTip.BorderSizePixel = 0
+storylineTip.TextColor3 = COLOR_WHITE
+storylineTip.Font = Enum.Font.Gotham
+storylineTip.TextSize = 12
+storylineTip.Text = "添加可以跳过这个任务  删除可以重做这个任务"
+storylineTip.Parent = storylinePage
+
     -- 缩放手柄
     local resizer = Instance.new("Frame")
     resizer.Name = "Resizer"
@@ -8039,6 +8225,7 @@ local function setTab(tabName)
     weaponsPage.Visible = tabName == "Weapons"
     inventoryPage.Visible = tabName == "Inventory"
     statusPage.Visible = tabName == "Status"
+	storylinePage.Visible = tabName == "Storyline"
 
     skillsTabButton.BackgroundColor3 =
         tabName == "Skills" and onColor or offColor
@@ -8050,6 +8237,8 @@ local function setTab(tabName)
         tabName == "Inventory" and onColor or offColor
     statusTabButton.BackgroundColor3 =
         tabName == "Status" and onColor or offColor
+	storylineTabButton.BackgroundColor3 =
+        tabName == "Storyline" and onColor or offColor
 end
 
     skillsTabButton.MouseButton1Click:Connect(function()
@@ -8070,6 +8259,10 @@ end)
 
 statusTabButton.MouseButton1Click:Connect(function()
     setTab("Status")
+end)
+
+storylineTabButton.MouseButton1Click:Connect(function()
+    setTab("Storyline")
 end)
 
     setTab("Skills")
@@ -8227,6 +8420,10 @@ StatusSearchBox = statusSearchBox,
 StatusScrollFrame = statusScrollFrame,
 StatusListLayout = statusListLayout,
 StatusValueBox = statusValueBox,
+StorylineTabButton = storylineTabButton,
+StorylinePage = storylinePage,
+StorylineScrollFrame = storylineScrollFrame,
+StorylineLayout = storylineLayout,
 SettingsButton = settingsButton,
 SettingsFrame = settingsFrame,
 AutoWeaponButton = AutoWeaponButton,
@@ -10104,6 +10301,87 @@ function createStatusRow(ui, statusData, order)
     }
 end
 
+function createStorylineRow(ui, taskData, order)
+    local rowButton = Instance.new("TextButton")
+    rowButton.Name = "StorylineRow_" .. taskData.completionFlag
+    rowButton.Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT)
+    rowButton.BackgroundColor3 = COLOR_BTN_BG
+    rowButton.TextColor3 = COLOR_WHITE
+    rowButton.Font = Enum.Font.Gotham
+    rowButton.TextSize = 12
+    rowButton.TextXAlignment = Enum.TextXAlignment.Left
+    rowButton.AutoButtonColor = false
+    rowButton.LayoutOrder = order
+    rowButton.Parent = ui.StorylineScrollFrame
+
+    local normalText = string.format(
+        "  [%d][%s][%s][%s]",
+        taskData.level,
+        taskData.taskName,
+        taskData.location,
+        taskData.previousTaskName
+    )
+
+    rowButton.Text = normalText
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = rowButton
+
+    rowButton.MouseButton1Click:Connect(function()
+        local ok, action, result =
+            toggleStorylineTask(taskData)
+
+        if ok and action == "added" then
+            rowButton.Text = "  已添加，可以跳过此任务"
+            rowButton.BackgroundColor3 = COLOR_SUCCESS
+        elseif ok and action == "removed" then
+            rowButton.Text = "  已删除，可以重做此任务"
+            rowButton.BackgroundColor3 = COLOR_RED
+        else
+            rowButton.Text = "  操作失败: " .. tostring(result)
+            rowButton.BackgroundColor3 = COLOR_RED
+        end
+
+        task.delay(0.8, function()
+            if rowButton and rowButton.Parent then
+                rowButton.Text = normalText
+                rowButton.BackgroundColor3 = COLOR_BTN_BG
+            end
+        end)
+    end)
+
+    storylineRowMap[taskData.completionFlag] = {
+        Button = rowButton,
+        TaskData = taskData
+    }
+end
+
+function rebuildStorylineList(ui)
+    table.clear(storylineRowMap)
+
+    for _, child in ipairs(
+        ui.StorylineScrollFrame:GetChildren()
+    ) do
+        if child:IsA("TextButton")
+            and string.sub(child.Name, 1, 13)
+                == "StorylineRow_"
+        then
+            child:Destroy()
+        end
+    end
+
+    for index, taskData in ipairs(storylineTasks) do
+        createStorylineRow(ui, taskData, index)
+    end
+
+    local totalHeight =
+        (#storylineTasks * (BUTTON_HEIGHT + ROW_PADDING)) + 8
+
+    ui.StorylineScrollFrame.CanvasSize =
+        UDim2.new(0, 0, 0, totalHeight)
+end
+
 function rebuildStatusList(ui)
     table.clear(statusRowMap)
 
@@ -11308,6 +11586,7 @@ rebuildInnateList(uiRefs)
 rebuildWeaponList(uiRefs)
 rebuildInventoryList(uiRefs)
 rebuildStatusList(uiRefs)
+rebuildStorylineList(uiRefs)
 uiRefs.RefreshInnateSlotLabel()
 
 setupBulkEdit(uiRefs)
