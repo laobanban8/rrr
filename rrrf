@@ -2213,10 +2213,18 @@ local function applyRatingTitleStyle(titleLabel, index)
         gradient.Name = "RatingTitleGradient"
         gradient.Rotation = 45
         gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.000, Color3.fromRGB(0, 0, 0)),
-            ColorSequenceKeypoint.new(0.499, Color3.fromRGB(0, 0, 0)),
-            ColorSequenceKeypoint.new(0.501, Color3.fromRGB(255, 255, 255)),
-            ColorSequenceKeypoint.new(1.000, Color3.fromRGB(255, 255, 255))
+            ColorSequenceKeypoint.new(
+                0.00,
+                Color3.fromRGB(0, 0, 0)
+            ),
+            ColorSequenceKeypoint.new(
+                0.50,
+                Color3.fromRGB(128, 128, 128)
+            ),
+            ColorSequenceKeypoint.new(
+                1.00,
+                Color3.fromRGB(255, 255, 255)
+            )
         })
         gradient.Parent = titleLabel
     end
@@ -2255,10 +2263,49 @@ local function applySpecialRatingGradient(valueLabel, rawValue)
 
         -- Changing：左侧 50% 纯黑，右侧 50% 纯白。
         gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(0, 0, 0)),
-            ColorSequenceKeypoint.new(0.499, Color3.fromRGB(0, 0, 0)),
-            ColorSequenceKeypoint.new(0.501, Color3.fromRGB(255, 255, 255)),
-            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 255, 255))
+            ColorSequenceKeypoint.new(
+                0.00000,
+                Color3.fromRGB(0, 0, 0)
+            ),
+            ColorSequenceKeypoint.new(
+                0.49900,
+                Color3.fromRGB(0, 0, 0)
+            ),
+            ColorSequenceKeypoint.new(
+                0.50100,
+                Color3.fromRGB(255, 255, 255)
+            ),
+            ColorSequenceKeypoint.new(
+                1.00000,
+                Color3.fromRGB(255, 255, 255)
+            )
+        })
+
+    elseif string.find(value, "Unknown", 1, true) then
+        gradient = Instance.new("UIGradient")
+        gradient.Name = "SpecialRatingGradient"
+
+        -- 斜向静态渐变。
+        gradient.Rotation = 45
+
+        -- Unknown：黑 -> 灰 -> 白柔和过渡，各占约 1/3。
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(
+                0.00000,
+                Color3.fromRGB(0, 0, 0)
+            ),
+            ColorSequenceKeypoint.new(
+                0.33333,
+                Color3.fromRGB(128, 128, 128)
+            ),
+            ColorSequenceKeypoint.new(
+                0.66667,
+                Color3.fromRGB(192, 192, 192)
+            ),
+            ColorSequenceKeypoint.new(
+                1.00000,
+                Color3.fromRGB(255, 255, 255)
+            )
         })
 
     elseif string.find(value, "SSS+", 1, true) then
