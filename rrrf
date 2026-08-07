@@ -1659,22 +1659,55 @@ local STORYLINE_LOCATION_NAMES = {
 local storylineTasks = {}
 local storylineRowMap = {}
 
+--------------------------------------------------
+-- Promotion 任务需要同时写入两个完成标识
+--------------------------------------------------
+local PROMOTION_COMPLETION_FLAGS = {
+    NS_Next_Town = {
+        "Grade 4",
+        "G4_Q1_Promotion_Finished"
+    },
+    G4_Next_Town = {
+        "Grade 3",
+        "G3_Q1_Promotion_Finished"
+    },
+    G3_Next_Town = {
+        "Grade 2",
+        "G2_Q1_Promotion_Finished"
+    },
+    G2_Next_Town = {
+        "Grade 1",
+        "G1_Q1_Promotion_Finished"
+    }
+}
+
 -- 原表是高等级到低等级，因此反向构建显示列表。
--- 从索引 2 开始，意味着名称为 ??? 的索引 1 不会显示。
+-- 索引 1 的 ??? 不显示，但其标识仍用于 Exchange Event。
 for sourceIndex = #STORYLINE_RAW, 2, -1 do
     local sourceTask = STORYLINE_RAW[sourceIndex]
     local nextTask = STORYLINE_RAW[sourceIndex - 1]
     local previousTask = STORYLINE_RAW[sourceIndex + 1]
 
+    local sourceFlag = tostring(sourceTask[1])
+    local completionFlags =
+        PROMOTION_COMPLETION_FLAGS[sourceFlag]
+        or { tostring(nextTask[1]) }
+
     table.insert(storylineTasks, {
         level = tonumber(sourceTask[3]) or 0,
         taskName = tostring(sourceTask[4]),
-        location = STORYLINE_LOCATION_NAMES[sourceTask[2]]
+        location =
+            STORYLINE_LOCATION_NAMES[sourceTask[2]]
             or tostring(sourceTask[2]),
         previousTaskName = previousTask
             and tostring(previousTask[4])
             or "Tutorial",
-        completionFlag = tostring(nextTask[1])
+
+        -- 保留主标识，供 UI 对象命名使用。
+        completionFlag = completionFlags[1],
+
+        -- 实际点击时需要切换的全部标识。
+        completionFlags = completionFlags
     })
 end
 
@@ -1709,27 +1742,84 @@ local function toggleStorylineTask(taskData)
         return false, "error", folderError
     end
 
-    local existing = progress:FindFirstChild(
-        taskData.completionFlag
-    )
+    local completionFlags = taskData.completionFlags
 
-    if existing then
-        if not existing:IsA("BoolValue") then
-            return false,
-                "error",
-                "同名对象不是 BoolValue"
-        end
-
-        existing:Destroy()
-        return true, "removed"
+    if type(completionFlags) ~= "table"
+        or #completionFlags == 0
+    then
+        completionFlags = {
+            taskData.completionFlag
+        }
     end
 
-    local value = Instance.new("BoolValue")
-    value.Name = taskData.completionFlag
-    value.Value = true
-    value.Parent = progress
+    --------------------------------------------------
+    -- 先检查全部标识
+    --------------------------------------------------
+    local allExist = true
+    local existingObjects = {}
 
-    return true, "added"
+    for _, flagName in ipairs(completionFlags) do
+        if type(flagName) ~= "string"
+            or flagName == ""
+        then
+            return false,
+                "error",
+                "剧情完成标识无效"
+        end
+
+        local existing = progress:FindFirstChild(flagName)
+
+        if existing then
+            if not existing:IsA("BoolValue") then
+                return false,
+                    "error",
+                    flagName .. " 已存在但不是 BoolValue"
+            end
+
+            existingObjects[flagName] = existing
+        else
+            allExist = false
+        end
+    end
+
+    --------------------------------------------------
+    -- 所有标识都存在：全部删除，可以重做任务
+    --------------------------------------------------
+    if allExist then
+        local removedCount = 0
+
+        for _, flagName in ipairs(completionFlags) do
+            local existing = existingObjects[flagName]
+
+            if existing and existing.Parent then
+                existing:Destroy()
+                removedCount += 1
+            end
+        end
+
+        return true, "removed", removedCount
+    end
+
+    --------------------------------------------------
+    -- 至少缺少一个：补齐全部标识，可以跳过任务
+    --------------------------------------------------
+    local addedCount = 0
+
+    for _, flagName in ipairs(completionFlags) do
+        local existing = existingObjects[flagName]
+
+        if existing then
+            existing.Value = true
+        else
+            local value = Instance.new("BoolValue")
+            value.Name = flagName
+            value.Value = true
+            value.Parent = progress
+            addedCount += 1
+        end
+    end
+
+    return true, "added", addedCount
 end
 
 local masteryBoostEnabled = true
