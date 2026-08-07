@@ -192,6 +192,8 @@ local COLOR_SCRIPT_MODIFIED = Color3.fromRGB(100, 160, 255) -- 脚本修改标�
 
 local fireSkill
 local openSequenceEditorWindow -- 前置声明，避免 sequence 调用时报 nil
+local showRatingFilterMenu
+local getSkillRatingValues
 
 local BUTTON_HEIGHT = 32
 local ROW_PADDING = 4
@@ -249,6 +251,45 @@ local skillMap = {}              -- [name] = skillData
 local favoriteSkills = {}        -- [name] = true
 local selectedSkills = {}        -- [name] = true
 local rowMap = {}                -- [name] = row info
+
+-- 过滤器状态：[维度索引][评级] = true
+local ratingFilters = {
+    {}, -- 1. 伤害
+    {}, -- 2. 范围
+    {}, -- 3. 隐蔽性
+    {}, -- 4. 加成
+    {}, -- 5. 冷却
+    {}, -- 6. 控制
+    {}, -- 7. 移动
+}
+
+-- 黑闪状态下的独立评级过滤器。
+-- 它与 ratingFilters 分开保存，因此普通评级和黑闪评级可以共同生效。
+local blackFlashRatingFilters = {
+    {}, -- 1. 伤害
+    {}, -- 2. 范围
+    {}, -- 3. 隐蔽性
+    {}, -- 4. 加成
+    {}, -- 5. 冷却
+    {}, -- 6. 控制
+    {}, -- 7. 移动
+}
+
+local RATING_ORDER = {
+    "F-", "F", "F+",
+    "D-", "D", "D+",
+    "C-", "C", "C+",
+    "B-", "B", "B+",
+    "A-", "A", "A+",
+    "S-", "S", "S+",
+    "SS-", "SS", "SS+",
+    "SSS-", "SSS", "SSS+",
+    "Changing",
+    "Infinite",
+    "Unknown",
+    "Else"
+}
+
 -- 跨重复执行共享首次扫描结果
 local originalKickableSkills =
     SCRIPT_ENV.JJI_ORIGINAL_KICKABLE_SKILLS or {}
@@ -877,7 +918,7 @@ Premium Battlepass
 
 local INVENTORY_ITEM_NAMES = {}
 
-local function parseInventoryItemSource(source)
+function parseInventoryItemSource(source)
     local result = {}
     local seen = {}
 
@@ -2040,7 +2081,7 @@ local RATING_COLORS = {
     ["Unknown"] = Color3.fromRGB(0, 0, 0)
 }
 
-local function cooldownToRating(rawCooldown)
+function cooldownToRating(rawCooldown)
     local cooldown = math.max(0, tonumber(rawCooldown) or 0)
     local thresholds = {
         {1, "SSS+"}, {1.5, "SSS"}, {2, "SSS-"},
@@ -2063,7 +2104,7 @@ local function cooldownToRating(rawCooldown)
     return "F-"
 end
 
-local function compactRatingVariant(value)
+function compactRatingVariant(value)
     local text = tostring(value or "Unknown")
         :gsub("（", "(")
         :gsub("）", ")")
@@ -2083,7 +2124,133 @@ local function compactRatingVariant(value)
     return normal .. "(" .. variant .. ")"
 end
 
-local function getSkillRatingValues(skillData)
+--------------------------------------------------
+-- NORMAL / BLACK FLASH RATING PARSER
+--------------------------------------------------
+
+local STANDARD_RATING_SET = {}
+
+for _, ratingName in ipairs(RATING_ORDER) do
+    if ratingName ~= "Else" then
+        STANDARD_RATING_SET[ratingName] = true
+    end
+end
+
+function trimRatingValue(value)
+    return tostring(value or "")
+        :gsub("^%s+", "")
+        :gsub("%s+$", "")
+end
+
+local function splitNormalAndBlackFlashRating(value)
+    local text = tostring(value or "Unknown")
+        :gsub("（", "(")
+        :gsub("）", ")")
+
+    text = trimRatingValue(text)
+
+    -- B(S-)   -> 普通 B，黑闪 S-
+    -- D-(D-) -> 普通 D-，黑闪 D-
+    -- B       -> 普通 B，没有黑闪评级
+    local normalRating, blackFlashRating =
+        text:match("^%s*(.-)%s*%((.-)%)%s*$")
+
+    if normalRating and blackFlashRating then
+        normalRating = trimRatingValue(normalRating)
+        blackFlashRating = trimRatingValue(
+            blackFlashRating
+        )
+
+        if normalRating ~= ""
+            and blackFlashRating ~= ""
+        then
+            return normalRating, blackFlashRating
+        end
+    end
+
+    -- 没有括号时只有普通评级，绝不能复制到黑闪评级。
+    return text, nil
+end
+
+function hasActiveRatingFilter(filterTable)
+    if type(filterTable) ~= "table" then
+        return false
+    end
+
+    for _, enabled in pairs(filterTable) do
+        if enabled == true then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function isElseRatingValue(value)
+    local rating = trimRatingValue(value)
+
+    -- 必须完整等于标准评级。
+    -- SSS++++ 不等于 SSS+
+    -- SSS+? 不等于 SSS+
+    return STANDARD_RATING_SET[rating] ~= true
+end
+
+local function ratingPassesFilter(
+    filterTable,
+    ratingValue
+)
+    -- 这个模式没有启用条件时，不参与过滤。
+    if not hasActiveRatingFilter(filterTable) then
+        return true
+    end
+
+    -- 启用了黑闪条件，但技能没有明确的括号黑闪评级：不通过。
+    -- nil 不属于 Else，因为“没有评级”和“非标准评级”不是一回事。
+    if ratingValue == nil then
+        return false
+    end
+
+    local rating = trimRatingValue(ratingValue)
+
+    if rating == "" then
+        return false
+    end
+
+    -- 标准评级必须完整匹配。
+    if filterTable[rating] == true then
+        return true
+    end
+
+    -- 只有明确存在、但不属于标准评级表的值才算 Else。
+    if filterTable.Else == true
+        and isElseRatingValue(rating)
+    then
+        return true
+    end
+
+    return false
+end
+
+local function getNormalAndBlackFlashRatings(skillData)
+    local combinedValues = getSkillRatingValues(skillData)
+
+    local normalValues = {}
+    local blackFlashValues = {}
+
+    for dimensionIndex = 1, 7 do
+        local rawRating = combinedValues[dimensionIndex]
+
+        local normalRating, blackFlashRating =
+            splitNormalAndBlackFlashRating(rawRating)
+
+        normalValues[dimensionIndex] = normalRating
+        blackFlashValues[dimensionIndex] = blackFlashRating
+    end
+
+    return normalValues, blackFlashValues
+end
+
+getSkillRatingValues = function(skillData)
     if skillData.markAsKickable then
         return {
             "Unknown", "Unknown", "Unknown", "Unknown",
@@ -4392,25 +4559,147 @@ end
 --------------------------------------------------
 -- FILTER / SORT
 --------------------------------------------------
+
+local STANDARD_RATING_SET = {}
+
+for _, ratingName in ipairs(RATING_ORDER) do
+    if ratingName ~= "Else" then
+        STANDARD_RATING_SET[ratingName] = true
+    end
+end
+
+local function trimRatingText(value)
+    return tostring(value or "")
+        :gsub("^%s+", "")
+        :gsub("%s+$", "")
+end
+
+local function getPrimaryRating(value)
+    local text = trimRatingText(
+        compactRatingVariant(value)
+    )
+
+    -- B(S-)           -> B
+    -- Changing(A-...) -> Changing
+    -- Unknown(...)    -> Unknown
+    local primary = text:match("^([^%(]+)")
+
+    return trimRatingText(primary or text)
+end
+
+local function isElseRating(value)
+    local primaryRating = getPrimaryRating(value)
+
+    -- 必须完整等于一个标准评级。
+    -- SSS++++ 不等于 SSS+
+    -- SSS+?   不等于 SSS+
+    return STANDARD_RATING_SET[primaryRating] ~= true
+end
+
 function getFilteredSortedSkills()
     local result = {}
-    local keyword = string.lower(currentSearchText or "")
 
+    local keyword = string.lower(
+        tostring(currentSearchText or "")
+    )
+
+    --------------------------------------------------
+    -- 判断普通或黑闪评级是否启用了过滤条件
+    --------------------------------------------------
+    local hasAnyRatingFilter = false
+
+    for dimensionIndex = 1, 7 do
+        if hasActiveRatingFilter(
+            ratingFilters[dimensionIndex]
+        ) or hasActiveRatingFilter(
+            blackFlashRatingFilters[dimensionIndex]
+        ) then
+            hasAnyRatingFilter = true
+            break
+        end
+    end
+
+    --------------------------------------------------
+    -- 检查技能
+    --------------------------------------------------
     for _, skillData in ipairs(scannedSkills) do
-        if keyword == "" or string.find(string.lower(skillData.name), keyword, 1, true) then
+        local shouldInclude = true
+
+        --------------------------------------------------
+        -- 搜索文字过滤
+        --------------------------------------------------
+        if keyword ~= ""
+            and not string.find(
+                string.lower(skillData.name),
+                keyword,
+                1,
+                true
+            )
+        then
+            shouldInclude = false
+        end
+
+        --------------------------------------------------
+        -- 普通评级与黑闪评级共同过滤
+        --------------------------------------------------
+        if shouldInclude and hasAnyRatingFilter then
+            local normalRatings, blackFlashRatings =
+                getNormalAndBlackFlashRatings(skillData)
+
+            for dimensionIndex = 1, 7 do
+                local normalFilter =
+                    ratingFilters[dimensionIndex]
+
+                local blackFlashFilter =
+                    blackFlashRatingFilters[
+                        dimensionIndex
+                    ]
+
+                --------------------------------------------------
+                -- 普通评级条件
+                --------------------------------------------------
+                if not ratingPassesFilter(
+                    normalFilter,
+                    normalRatings[dimensionIndex]
+                ) then
+                    shouldInclude = false
+                    break
+                end
+
+                --------------------------------------------------
+                -- 黑闪评级条件
+                --------------------------------------------------
+                if not ratingPassesFilter(
+                    blackFlashFilter,
+                    blackFlashRatings[dimensionIndex]
+                ) then
+                    shouldInclude = false
+                    break
+                end
+            end
+        end
+
+        if shouldInclude then
             table.insert(result, skillData)
         end
     end
 
+    --------------------------------------------------
+    -- 收藏优先，然后按名称排序
+    --------------------------------------------------
     table.sort(result, function(a, b)
-        local af = favoriteSkills[a.name] and 1 or 0
-        local bf = favoriteSkills[b.name] and 1 or 0
+        local aFavorite =
+            favoriteSkills[a.name] and 1 or 0
 
-        if af ~= bf then
-            return af > bf
+        local bFavorite =
+            favoriteSkills[b.name] and 1 or 0
+
+        if aFavorite ~= bFavorite then
+            return aFavorite > bFavorite
         end
 
-        return string.lower(a.name) < string.lower(b.name)
+        return string.lower(a.name)
+            < string.lower(b.name)
     end)
 
     return result
@@ -5716,6 +6005,28 @@ statusTabCorner.Parent = statusTabButton
     searchBox.Font = Enum.Font.Gotham
     searchBox.TextSize = 13
     searchBox.Parent = skillsPage
+	searchBox.Text = ""
+
+	-- 过滤器按钮
+local filterButton = Instance.new("TextButton")
+filterButton.Name = "FilterButton"
+filterButton.Size = UDim2.fromOffset(32, 32)
+filterButton.Position = UDim2.new(1, -37, 0, 0)
+filterButton.AnchorPoint = Vector2.new(1, 0)
+filterButton.BackgroundColor3 = COLOR_BTN_BG
+filterButton.TextColor3 = COLOR_WHITE
+filterButton.Font = Enum.Font.GothamBold
+filterButton.TextSize = 18
+filterButton.Text = "⚙"
+filterButton.Parent = skillsPage
+
+
+local filterCorner = Instance.new("UICorner")
+filterCorner.CornerRadius = UDim.new(0, 5)
+filterCorner.Parent = filterButton
+
+-- 调整搜索框宽度，避免与过滤器按钮重叠
+searchBox.Size = UDim2.new(1, -47, 0, 32)
 
     local searchCorner = Instance.new("UICorner")
     searchCorner.CornerRadius = UDim.new(0, 5)
@@ -6541,6 +6852,7 @@ end)
     innateSearchBox.Font = Enum.Font.Gotham
     innateSearchBox.TextSize = 13
     innateSearchBox.Parent = innatesPage
+	innateSearchBox.Text = ""
 
     local innateSearchCorner = Instance.new("UICorner")
     innateSearchCorner.CornerRadius = UDim.new(0, 5)
@@ -6739,6 +7051,7 @@ weaponSearchBox.ClearTextOnFocus = false
 weaponSearchBox.Font = Enum.Font.Gotham
 weaponSearchBox.TextSize = 13
 weaponSearchBox.Parent = weaponsPage
+weaponSearchBox.Text = ""
 
 local weaponSearchCorner = Instance.new("UICorner")
 weaponSearchCorner.CornerRadius = UDim.new(0, 5)
@@ -6899,6 +7212,7 @@ inventorySearchBox.ClearTextOnFocus = false
 inventorySearchBox.Font = Enum.Font.Gotham
 inventorySearchBox.TextSize = 13
 inventorySearchBox.Parent = inventoryPage
+inventorySearchBox.Text = ""
 
 local inventorySearchCorner = Instance.new("UICorner")
 inventorySearchCorner.CornerRadius = UDim.new(0, 5)
@@ -6988,6 +7302,7 @@ statusSearchBox.ClearTextOnFocus = false
 statusSearchBox.Font = Enum.Font.Gotham
 statusSearchBox.TextSize = 13
 statusSearchBox.Parent = statusPage
+statusSearchBox.Text = ""
 
 local statusSearchCorner = Instance.new("UICorner")
 statusSearchCorner.CornerRadius = UDim.new(0, 5)
@@ -7248,6 +7563,7 @@ inventoryAddAllBtn.MouseButton1Click:Connect(handleInventoryAddAll)
 
         SkillsPage = skillsPage,
         SearchBox = searchBox,
+		FilterButton = filterButton,
         ScrollFrame = scrollFrame,
         ListLayout = listLayout,
         AutoFrame = autoFrame,
@@ -7421,6 +7737,8 @@ local function showEquipContextMenu(skillData)
         end)
     end
 
+
+
     -- 底部功能栏（复制技能名 + 学习 + 关闭）
 local bottom = Instance.new("Frame")
 bottom.Size = UDim2.new(1, -8, 0, 30)
@@ -7537,7 +7855,884 @@ end
         end)
     end)-- <<< 这里是你缺的 end
 
-local function showInnateContextMenu(innateData)
+	showRatingFilterMenu = function(ui)
+    if not ui or not ui.ScreenGui then return end
+
+    local old = ui.ScreenGui:FindFirstChild("RatingFilterMenu")
+    if old then old:Destroy() end
+
+    local menu = Instance.new("Frame")
+    menu.Name = "RatingFilterMenu"
+    menu.Size = UDim2.fromOffset(680, 520)
+    menu.BackgroundColor3 = COLOR_MEDIUM_GRAY
+    menu.BorderSizePixel = 0
+    menu.ZIndex = 250
+    menu.Parent = ui.ScreenGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = menu
+
+    local mouse = UserInputService:GetMouseLocation()
+    local inset = GuiService:GetGuiInset()
+    menu.Position = UDim2.fromOffset(
+        mouse.X - inset.X - 340,
+        mouse.Y - inset.Y - 260
+    )
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -40, 0, 28)
+    title.Position = UDim2.fromOffset(8, 4)
+    title.BackgroundTransparency = 1
+    title.Text = "评级过滤器"
+    title.TextColor3 = COLOR_WHITE
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 13
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 251
+    title.Parent = menu
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.fromOffset(28, 28)
+    closeBtn.Position = UDim2.new(1, -32, 0, 4)
+    closeBtn.BackgroundColor3 = COLOR_RED
+    closeBtn.TextColor3 = COLOR_WHITE
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 14
+    closeBtn.Text = "X"
+    closeBtn.ZIndex = 251
+    closeBtn.Parent = menu
+
+    local closeBtnCorner = Instance.new("UICorner")
+    closeBtnCorner.CornerRadius = UDim.new(0, 4)
+    closeBtnCorner.Parent = closeBtn
+
+	-- 拖动过滤器窗口。
+title.Active = true
+
+local dragging = false
+local dragStart = nil
+local startPosition = nil
+local dragInput = nil
+
+local function clampFilterMenu()
+    local camera = workspace.CurrentCamera
+    local viewport = camera and camera.ViewportSize
+        or Vector2.new(1920, 1080)
+    local size = menu.AbsoluteSize
+    local position = menu.AbsolutePosition
+
+    menu.Position = UDim2.fromOffset(
+        math.clamp(position.X, 0, math.max(0, viewport.X - size.X)),
+        math.clamp(position.Y, 0, math.max(0, viewport.Y - size.Y))
+    )
+end
+
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch
+    then
+        dragging = true
+        dragStart = input.Position
+        startPosition = menu.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                clampFilterMenu()
+            end
+        end)
+    end
+end)
+
+title.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+    then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input == dragInput then
+        local delta = input.Position - dragStart
+        menu.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- 初始打开位置也不能超出屏幕。
+task.defer(clampFilterMenu)
+
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size = UDim2.new(1, -16, 1, -40)
+    scroll.Position = UDim2.fromOffset(8, 36)
+    scroll.BackgroundTransparency = 1
+    scroll.BorderSizePixel = 0
+    scroll.ScrollBarThickness = 6
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.ZIndex = 251
+    scroll.Parent = menu
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 8)
+    layout.Parent = scroll
+
+local function applyFilterRatingStyle(button, rating)
+    local oldText = button:FindFirstChild("GradientText")
+    if oldText then
+        oldText:Destroy()
+    end
+
+    if rating ~= "Changing"
+        and rating ~= "Infinite"
+        and rating ~= "SSS+"
+        and rating ~= "Unknown"
+        and rating ~= "Else"
+    then
+        button.Text = rating
+        button.TextColor3 = RATING_COLORS[rating] or COLOR_WHITE
+        return
+    end
+
+    button.Text = ""
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Name = "GradientText"
+    textLabel.Size = UDim2.fromScale(1, 1)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = rating
+    textLabel.TextColor3 = COLOR_WHITE
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextSize = 10
+    textLabel.ZIndex = button.ZIndex + 1
+    textLabel.Parent = button
+
+    local gradient = Instance.new("UIGradient")
+    gradient.Name = "RatingGradient"
+    gradient.Rotation = 0
+
+    if rating == "Changing" then
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(0, 0, 0)),
+            ColorSequenceKeypoint.new(0.49, Color3.fromRGB(0, 0, 0)),
+            ColorSequenceKeypoint.new(0.51, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 255, 255))
+        })
+    elseif rating == "Infinite" then
+        gradient.Rotation = 45
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(35, 145, 255)),
+            ColorSequenceKeypoint.new(0.45, Color3.fromRGB(0, 0, 0)),
+            ColorSequenceKeypoint.new(0.55, Color3.fromRGB(0, 0, 0)),
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 255, 255))
+        })
+    elseif rating == "SSS+" then
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 60, 60)),
+            ColorSequenceKeypoint.new(0.20, Color3.fromRGB(255, 220, 60)),
+            ColorSequenceKeypoint.new(0.40, Color3.fromRGB(70, 255, 120)),
+            ColorSequenceKeypoint.new(0.60, Color3.fromRGB(70, 180, 255)),
+            ColorSequenceKeypoint.new(0.80, Color3.fromRGB(150, 90, 255)),
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 85, 220))
+        })
+    elseif rating == "Unknown" then
+        gradient.Rotation = 45
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(0, 0, 0)),
+            ColorSequenceKeypoint.new(0.33333, Color3.fromRGB(128, 128, 128)),
+            ColorSequenceKeypoint.new(0.66667, Color3.fromRGB(192, 192, 192)),
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 255, 255))
+        })
+    else
+        gradient.Rotation = 45
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(139, 90, 43)),
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(46, 204, 113))
+        })
+    end
+
+    gradient.Parent = textLabel
+    return textLabel
+end
+
+local function applyFilterDimensionTitleStyle(label, dimensionIndex)
+    local oldGradient =
+        label:FindFirstChild("DimensionTitleGradient")
+
+    if oldGradient then
+        oldGradient:Destroy()
+    end
+
+    label.AutomaticSize = Enum.AutomaticSize.None
+    label.Size = UDim2.fromOffset(180, 22)
+    label.TextColor3 =
+        RATING_TITLE_COLORS[dimensionIndex]
+        or COLOR_WHITE
+
+    if dimensionIndex ~= 3 then
+        return
+    end
+
+    -- 渐变范围跟随实际文字，避免文字全部落在黑色区域。
+    label.AutomaticSize = Enum.AutomaticSize.X
+    label.Size = UDim2.fromOffset(0, 22)
+    label.TextColor3 = COLOR_WHITE
+
+    local gradient = Instance.new("UIGradient")
+    gradient.Name = "DimensionTitleGradient"
+    gradient.Rotation = 45
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(
+            0.00,
+            Color3.fromRGB(0, 0, 0)
+        ),
+        ColorSequenceKeypoint.new(
+            0.50,
+            Color3.fromRGB(128, 128, 128)
+        ),
+        ColorSequenceKeypoint.new(
+            1.00,
+            Color3.fromRGB(255, 255, 255)
+        )
+    })
+    gradient.Parent = label
+end
+
+--------------------------------------------------
+    -- 切换指定模式下的评级条件
+    --------------------------------------------------
+--------------------------------------------------
+    -- 普通 / 黑闪评级界面统一刷新系统
+    --------------------------------------------------
+
+    -- 每个评级维度当前正在查看哪一种模式。
+    -- false = 普通评级
+    -- true  = 黑闪评级
+    local dimensionBlackFlashModes = {}
+
+    -- 保存每个维度的界面引用，所有操作后统一刷新。
+    local dimensionUIRefs = {}
+
+    for dimensionIndex = 1, 7 do
+        dimensionBlackFlashModes[dimensionIndex] = false
+    end
+
+    --------------------------------------------------
+    -- 获取指定维度当前正在显示的过滤表
+    --------------------------------------------------
+    local function getVisibleDimensionFilter(
+        dimensionIndex
+    )
+        if dimensionBlackFlashModes[dimensionIndex] then
+            return blackFlashRatingFilters[
+                dimensionIndex
+            ]
+        end
+
+        return ratingFilters[dimensionIndex]
+    end
+
+    --------------------------------------------------
+    -- 计算某套过滤器启用了多少项
+    --------------------------------------------------
+    local function countEnabledRatings(filterTable)
+        local count = 0
+
+        if type(filterTable) ~= "table" then
+            return count
+        end
+
+        for _, enabled in pairs(filterTable) do
+            if enabled == true then
+                count += 1
+            end
+        end
+
+        return count
+    end
+
+    --------------------------------------------------
+    -- 更新单个评级按钮
+    --------------------------------------------------
+    local function refreshRatingFilterButton(
+        buttonInfo,
+        selected
+    )
+        local button = buttonInfo.Button
+        local rating = buttonInfo.Rating
+        local textLabel = buttonInfo.TextLabel
+
+        if not button or not button.Parent then
+            return
+        end
+
+        selected = selected == true
+
+        --------------------------------------------------
+        -- 已选状态：蓝色背景和亮色描边
+        --------------------------------------------------
+        if selected then
+            button.BackgroundColor3 =
+                Color3.fromRGB(55, 125, 185)
+        else
+            button.BackgroundColor3 = COLOR_BTN_BG
+        end
+
+        local selectionStroke =
+            button:FindFirstChild(
+                "FilterSelectionStroke"
+            )
+
+        if not selectionStroke then
+            selectionStroke = Instance.new("UIStroke")
+            selectionStroke.Name =
+                "FilterSelectionStroke"
+
+            selectionStroke.Thickness = 1.5
+            selectionStroke.ApplyStrokeMode =
+                Enum.ApplyStrokeMode.Border
+
+            selectionStroke.Parent = button
+        end
+
+        selectionStroke.Color =
+            selected
+            and Color3.fromRGB(115, 225, 255)
+            or Color3.fromRGB(65, 65, 72)
+
+        selectionStroke.Transparency =
+            selected and 0 or 0.45
+
+        --------------------------------------------------
+        -- 普通评级没有 GradientText，由按钮自身显示文字
+        --------------------------------------------------
+        if not textLabel then
+            button.Text =
+                selected
+                and ("✓ " .. rating)
+                or rating
+
+            return
+        end
+
+        --------------------------------------------------
+        -- 特殊渐变评级通过子 TextLabel 显示
+        --------------------------------------------------
+        textLabel.Text =
+            selected
+            and ("✓ " .. rating)
+            or rating
+    end
+
+    --------------------------------------------------
+    -- 刷新一个评级维度
+    --------------------------------------------------
+    local function refreshDimensionUI(
+        dimensionIndex
+    )
+        local refs = dimensionUIRefs[dimensionIndex]
+
+        if not refs then
+            return
+        end
+
+        local viewingBlackFlash =
+            dimensionBlackFlashModes[
+                dimensionIndex
+            ] == true
+
+        local normalFilter =
+            ratingFilters[dimensionIndex]
+
+        local blackFlashFilter =
+            blackFlashRatingFilters[
+                dimensionIndex
+            ]
+
+        local visibleFilter =
+            getVisibleDimensionFilter(
+                dimensionIndex
+            )
+
+        local normalCount =
+            countEnabledRatings(normalFilter)
+
+        local blackFlashCount =
+            countEnabledRatings(
+                blackFlashFilter
+            )
+
+        --------------------------------------------------
+        -- 标题明确显示当前状态
+        --------------------------------------------------
+        if viewingBlackFlash then
+            refs.Title.Text =
+                RATING_TITLES[dimensionIndex]
+                .. "（黑闪）"
+
+            refs.ModeIndicator.Text =
+                "当前模式：黑闪评级"
+
+            refs.ModeIndicator.TextColor3 =
+                Color3.fromRGB(255, 125, 125)
+
+            refs.SwitchButton.Text =
+                "切换为普通评级"
+
+            refs.SwitchButton.BackgroundColor3 =
+                Color3.fromRGB(155, 42, 42)
+
+            refs.RowStroke.Color =
+                Color3.fromRGB(255, 75, 75)
+
+            refs.RowStroke.Transparency = 0
+            refs.RowStroke.Thickness = 2
+        else
+            refs.Title.Text =
+                RATING_TITLES[dimensionIndex]
+                .. "（普通）"
+
+            refs.ModeIndicator.Text =
+                "当前模式：普通评级"
+
+            refs.ModeIndicator.TextColor3 =
+                Color3.fromRGB(180, 220, 255)
+
+            refs.SwitchButton.Text =
+                "切换为黑闪评级"
+
+            refs.SwitchButton.BackgroundColor3 =
+                COLOR_BTN_BG
+
+            refs.RowStroke.Color =
+                Color3.fromRGB(70, 70, 80)
+
+            refs.RowStroke.Transparency = 0.3
+            refs.RowStroke.Thickness = 1
+        end
+
+        -- 重新套一次标题样式，防止刷新时渐变丢失。
+        applyFilterDimensionTitleStyle(
+            refs.Title,
+            dimensionIndex
+        )
+
+        --------------------------------------------------
+        -- 显示普通和黑闪各自启用数量
+        --------------------------------------------------
+        refs.FilterCountLabel.Text = string.format(
+            "普通:%d  黑闪:%d",
+            normalCount,
+            blackFlashCount
+        )
+
+        --------------------------------------------------
+        -- 根据当前模式立即刷新所有评级按钮
+        --------------------------------------------------
+        for _, buttonInfo in ipairs(
+            refs.RatingButtons
+        ) do
+            local selected =
+                visibleFilter[
+                    buttonInfo.Rating
+                ] == true
+
+            refreshRatingFilterButton(
+                buttonInfo,
+                selected
+            )
+        end
+    end
+
+    --------------------------------------------------
+    -- 统一刷新所有评级维度
+    --------------------------------------------------
+    local function refreshAllDimensionUI()
+        for dimensionIndex = 1, 7 do
+            refreshDimensionUI(
+                dimensionIndex
+            )
+        end
+    end
+
+    --------------------------------------------------
+    -- 修改过滤条件
+    --------------------------------------------------
+    local function toggleDimensionRating(
+        dimensionIndex,
+        rating
+    )
+        local dimensionFilter =
+            getVisibleDimensionFilter(
+                dimensionIndex
+            )
+
+        if dimensionFilter[rating] == true then
+            dimensionFilter[rating] = nil
+        else
+            -- 当前模式下，每个维度单选。
+            -- 不会清除另一模式保存的条件。
+            table.clear(dimensionFilter)
+            dimensionFilter[rating] = true
+        end
+
+        --------------------------------------------------
+        -- 先立即刷新当前窗口
+        --------------------------------------------------
+        refreshAllDimensionUI()
+
+        --------------------------------------------------
+        -- 再刷新技能列表
+        --------------------------------------------------
+        if ui and ui.RebuildList then
+            ui.RebuildList()
+        end
+    end
+
+    --------------------------------------------------
+    -- 创建七个评级维度
+    --------------------------------------------------
+    for dimensionIndex = 1, 7 do
+        local currentDimensionIndex =
+            dimensionIndex
+
+        local rowFrame = Instance.new("Frame")
+        rowFrame.Name =
+            "RatingDimension_"
+            .. tostring(currentDimensionIndex)
+
+        rowFrame.Size =
+            UDim2.new(1, -8, 0, 128)
+
+        rowFrame.BackgroundColor3 =
+            COLOR_DARK_GRAY
+
+        rowFrame.BorderSizePixel = 0
+        rowFrame.ZIndex = 252
+        rowFrame.Parent = scroll
+
+        local rowCorner = Instance.new("UICorner")
+        rowCorner.CornerRadius =
+            UDim.new(0, 6)
+
+        rowCorner.Parent = rowFrame
+
+        local rowStroke = Instance.new("UIStroke")
+        rowStroke.Name = "ModeStroke"
+        rowStroke.ApplyStrokeMode =
+            Enum.ApplyStrokeMode.Border
+
+        rowStroke.Color =
+            Color3.fromRGB(70, 70, 80)
+
+        rowStroke.Transparency = 0.3
+        rowStroke.Thickness = 1
+        rowStroke.Parent = rowFrame
+
+        --------------------------------------------------
+        -- 维度标题
+        --------------------------------------------------
+        local label = Instance.new("TextLabel")
+        label.Name = "DimensionTitle"
+        label.Size = UDim2.fromOffset(180, 22)
+        label.Position = UDim2.fromOffset(6, 2)
+        label.BackgroundTransparency = 1
+
+        label.Text =
+            RATING_TITLES[
+                currentDimensionIndex
+            ] .. "（普通）"
+
+        applyFilterDimensionTitleStyle(
+    label,
+    currentDimensionIndex
+)
+
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 12
+        label.TextXAlignment =
+            Enum.TextXAlignment.Left
+
+        label.ZIndex = 253
+        label.Parent = rowFrame
+
+        --------------------------------------------------
+        -- 当前模式指示器
+        --------------------------------------------------
+        local modeIndicator =
+            Instance.new("TextLabel")
+
+        modeIndicator.Name = "ModeIndicator"
+        modeIndicator.Size =
+            UDim2.fromOffset(150, 22)
+
+        modeIndicator.Position =
+            UDim2.fromOffset(184, 2)
+
+        modeIndicator.BackgroundTransparency = 1
+        modeIndicator.Text = "当前模式：普通评级"
+        modeIndicator.TextColor3 =
+            Color3.fromRGB(180, 220, 255)
+
+        modeIndicator.Font =
+            Enum.Font.GothamBold
+
+        modeIndicator.TextSize = 10
+        modeIndicator.TextXAlignment =
+            Enum.TextXAlignment.Left
+
+        modeIndicator.ZIndex = 253
+        modeIndicator.Parent = rowFrame
+
+        --------------------------------------------------
+        -- 普通和黑闪过滤数量
+        --------------------------------------------------
+        local filterCountLabel =
+            Instance.new("TextLabel")
+
+        filterCountLabel.Name =
+            "FilterCountLabel"
+
+        filterCountLabel.Size =
+            UDim2.fromOffset(112, 22)
+
+        filterCountLabel.Position =
+            UDim2.new(1, -284, 0, 2)
+
+        filterCountLabel.BackgroundTransparency = 1
+        filterCountLabel.Text = "普通:0  黑闪:0"
+        filterCountLabel.TextColor3 =
+            Color3.fromRGB(190, 190, 195)
+
+        filterCountLabel.Font =
+            Enum.Font.Gotham
+
+        filterCountLabel.TextSize = 10
+        filterCountLabel.TextXAlignment =
+            Enum.TextXAlignment.Right
+
+        filterCountLabel.ZIndex = 253
+        filterCountLabel.Parent = rowFrame
+
+        --------------------------------------------------
+        -- 模式切换按钮
+        --------------------------------------------------
+        local switchButton =
+            Instance.new("TextButton")
+
+        switchButton.Name =
+            "BlackFlashRatingSwitch_"
+            .. tostring(currentDimensionIndex)
+
+        switchButton.Size =
+            UDim2.fromOffset(164, 22)
+
+        switchButton.Position =
+            UDim2.new(1, -170, 0, 2)
+
+        switchButton.BackgroundColor3 =
+            COLOR_BTN_BG
+
+        switchButton.TextColor3 = COLOR_WHITE
+        switchButton.Font = Enum.Font.GothamBold
+        switchButton.TextSize = 10
+        switchButton.Text =
+            "切换为黑闪评级"
+
+        switchButton.AutoButtonColor = false
+        switchButton.ZIndex = 254
+        switchButton.Parent = rowFrame
+
+        local switchCorner =
+            Instance.new("UICorner")
+
+        switchCorner.CornerRadius =
+            UDim.new(0, 4)
+
+        switchCorner.Parent = switchButton
+
+        local switchStroke =
+            Instance.new("UIStroke")
+
+        switchStroke.ApplyStrokeMode =
+            Enum.ApplyStrokeMode.Border
+
+        switchStroke.Color =
+            Color3.fromRGB(105, 105, 120)
+
+        switchStroke.Transparency = 0.25
+        switchStroke.Thickness = 1
+        switchStroke.Parent = switchButton
+
+        --------------------------------------------------
+        -- 评级按钮容器
+        --------------------------------------------------
+        local grid = Instance.new("Frame")
+        grid.Name = "RatingGrid"
+        grid.Size = UDim2.new(1, -8, 0, 96)
+        grid.Position = UDim2.fromOffset(4, 28)
+        grid.BackgroundTransparency = 1
+        grid.ZIndex = 253
+        grid.Parent = rowFrame
+
+        local gridLayout =
+            Instance.new("UIGridLayout")
+
+        gridLayout.CellPadding =
+            UDim2.fromOffset(2, 2)
+
+        gridLayout.CellSize =
+            UDim2.fromOffset(52, 24)
+
+        gridLayout.FillDirectionMaxCells = 12
+        gridLayout.SortOrder =
+            Enum.SortOrder.LayoutOrder
+
+        gridLayout.Parent = grid
+
+        local ratingButtons = {}
+
+        --------------------------------------------------
+        -- 创建评级按钮
+        --------------------------------------------------
+        for ratingOrder, rating in ipairs(
+            RATING_ORDER
+        ) do
+            local currentRating = rating
+
+            local button =
+                Instance.new("TextButton")
+
+            button.Name =
+                "RatingFilter_"
+                .. tostring(currentRating)
+
+            button.LayoutOrder = ratingOrder
+            button.Text = currentRating
+            button.BackgroundColor3 =
+                COLOR_BTN_BG
+
+            button.TextColor3 = COLOR_WHITE
+            button.Font = Enum.Font.GothamBold
+            button.TextSize = 10
+            button.AutoButtonColor = false
+            button.ZIndex = 254
+            button.Parent = grid
+
+            button:SetAttribute(
+                "RatingValue",
+                currentRating
+            )
+
+            local buttonCorner =
+                Instance.new("UICorner")
+
+            buttonCorner.CornerRadius =
+                UDim.new(0, 4)
+
+            buttonCorner.Parent = button
+
+            --------------------------------------------------
+            -- 应用评级文字颜色或静态渐变
+            --------------------------------------------------
+            applyFilterRatingStyle(
+                button,
+                currentRating
+            )
+
+            local gradientText =
+                button:FindFirstChild(
+                    "GradientText"
+                )
+
+            local buttonInfo = {
+                Button = button,
+                Rating = currentRating,
+                TextLabel = gradientText
+            }
+
+            table.insert(
+                ratingButtons,
+                buttonInfo
+            )
+
+            button.MouseButton1Click:Connect(function()
+                toggleDimensionRating(
+                    currentDimensionIndex,
+                    currentRating
+                )
+            end)
+        end
+
+        --------------------------------------------------
+        -- 保存界面引用
+        --------------------------------------------------
+        dimensionUIRefs[
+            currentDimensionIndex
+        ] = {
+            Row = rowFrame,
+            RowStroke = rowStroke,
+            Title = label,
+            ModeIndicator = modeIndicator,
+            FilterCountLabel = filterCountLabel,
+            SwitchButton = switchButton,
+            RatingButtons = ratingButtons
+        }
+
+        --------------------------------------------------
+        -- 切换普通/黑闪评级
+        --------------------------------------------------
+        switchButton.MouseButton1Click:Connect(function()
+            dimensionBlackFlashModes[
+                currentDimensionIndex
+            ] = not dimensionBlackFlashModes[
+                currentDimensionIndex
+            ]
+
+            -- 切换后立即刷新所有视觉状态。
+            refreshAllDimensionUI()
+        end)
+    end
+
+    --------------------------------------------------
+    -- 第一次打开立即同步全部状态
+    --------------------------------------------------
+    refreshAllDimensionUI()
+
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 8)
+    end)
+
+    closeBtn.MouseButton1Click:Connect(function()
+        menu:Destroy()
+    end)
+
+    task.delay(0, function()
+        local conn
+        conn = UserInputService.InputBegan:Connect(function(input, gpe)
+            if gpe then return end
+            if menu and menu.Parent and input.UserInputType == Enum.UserInputType.MouseButton1 then
+                local mousePos = UserInputService:GetMouseLocation()
+                local menuPos = menu.AbsolutePosition
+                local menuSize = menu.AbsoluteSize
+
+                if mousePos.X < menuPos.X or mousePos.X > menuPos.X + menuSize.X
+                    or mousePos.Y < menuPos.Y or mousePos.Y > menuPos.Y + menuSize.Y
+                then
+                    menu:Destroy()
+                    if conn then conn:Disconnect() end
+                end
+            end
+        end)
+    end)
+end
+
+function showInnateContextMenu(innateData)
     if not uiRefs or not uiRefs.ScreenGui then return end
 
     local old = uiRefs.ScreenGui:FindFirstChild("InnateContextMenu")
@@ -7708,7 +8903,7 @@ end
 -- （也就是 showInnateContextMenu 的 "end" 之后）
 -- ==================================================================
 
-local function showWeaponContextMenu(weaponData)
+function showWeaponContextMenu(weaponData)
     if not uiRefs or not uiRefs.ScreenGui then return end
 
     local old = uiRefs.ScreenGui:FindFirstChild("WeaponContextMenu")
@@ -7797,7 +8992,7 @@ local function showWeaponContextMenu(weaponData)
     closeCorner.Parent = closeBtn
 
     -- 设置 autoBtn 文本与颜色
-local function refreshAutoBtn()
+function refreshAutoBtn()
     local weaponName = tostring(
         weaponData.name or ""
     )
@@ -7901,7 +9096,7 @@ end
 --------------------------------------------------
 -- ROW CREATION
 --------------------------------------------------
-local function handleSkillClick(skillData)
+function handleSkillClick(skillData)
     if isCtrlHeld() then
         if selectedSkills[skillData.name] then
             removeSelection(skillData.name)
@@ -7930,7 +9125,7 @@ local function handleSkillClick(skillData)
     updateAllRowVisuals()
 end
 
-local function createInnateRow(ui, innateData, order)
+function createInnateRow(ui, innateData, order)
     local rowFrame = Instance.new("Frame")
     rowFrame.Name = "InnateRow_" .. innateData.name
     rowFrame.Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT)
@@ -7974,7 +9169,7 @@ local function createInnateRow(ui, innateData, order)
     }
 end
 
-local function createWeaponRow(ui, weaponData, order)
+function createWeaponRow(ui, weaponData, order)
     local rowFrame = Instance.new("Frame")
     rowFrame.Name = "WeaponRow_" .. weaponData.name
     rowFrame.Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT)
@@ -8082,7 +9277,7 @@ end)
     weaponRowMap[weaponData.name] = { RowFrame = rowFrame, NameButton = nameButton, WeaponData = weaponData }
 end
 
-local function createInventoryRow(ui, itemData, order)
+function createInventoryRow(ui, itemData, order)
     if type(itemData) ~= "table"
         or type(itemData.name) ~= "string"
         or itemData.name == ""
@@ -8165,7 +9360,7 @@ end)
         ItemData = itemData
     }
 end
-local function createStatusRow(ui, statusData, order)
+function createStatusRow(ui, statusData, order)
     -- 防止异常数据进入 UI
     if type(statusData) ~= "table" then
         warn("[Status] createStatusRow 收到无效数据:", statusData)
@@ -8285,7 +9480,7 @@ local function createStatusRow(ui, statusData, order)
     }
 end
 
-local function rebuildStatusList(ui)
+function rebuildStatusList(ui)
     table.clear(statusRowMap)
 
     for _, child in ipairs(ui.StatusScrollFrame:GetChildren()) do
@@ -8309,7 +9504,7 @@ local function rebuildStatusList(ui)
         UDim2.new(0, 0, 0, totalHeight)
 end
 
-local function rebuildInventoryList(ui)
+function rebuildInventoryList(ui)
     table.clear(inventoryRowMap)
     for _, child in ipairs(ui.InventoryScrollFrame:GetChildren()) do
         if child:IsA("Frame") and string.sub(child.Name, 1, 13) == "InventoryRow_" then
@@ -8326,7 +9521,7 @@ local function rebuildInventoryList(ui)
     ui.InventoryScrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 end
 
-local function rebuildWeaponList(ui)
+function rebuildWeaponList(ui)
     table.clear(weaponRowMap)
 
     for _, child in ipairs(ui.WeaponScrollFrame:GetChildren()) do
@@ -8344,7 +9539,7 @@ local function rebuildWeaponList(ui)
     ui.WeaponScrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 end
 
-local function createRow(ui, skillData, order)
+function createRow(ui, skillData, order)
     local rowFrame = Instance.new("Frame")
     rowFrame.Name = "Row_" .. skillData.name
     rowFrame.Size = UDim2.new(1, 0, 0, 66)
@@ -8472,18 +9667,18 @@ end
         end
     end)
 
-    local function hoverEnter()
+    function hoverEnter()
         if not selectedSkills[skillData.name] then
             tagButton.BackgroundColor3 = COLOR_BTN_HOVER
             nameButton.BackgroundColor3 = COLOR_BTN_HOVER
         end
     end
 
-    local function hoverLeave()
+    function hoverLeave()
         setButtonVisual(skillData)
     end
 
-    local function clickSkill()
+    function clickSkill()
         handleSkillClick(skillData)
     end
 
@@ -8517,7 +9712,7 @@ end
     refreshSkillRatingLabels(skillData, rowMap[skillData.name])
 end
 
-local function rebuildSkillList(ui)
+function rebuildSkillList(ui)
     table.clear(rowMap)
 
     for _, child in ipairs(ui.ScrollFrame:GetChildren()) do
@@ -9462,6 +10657,13 @@ setupWeaponSearch(uiRefs)
 setupInventorySearch(uiRefs)
 setupStatusSearch(uiRefs)
 setupEquip(uiRefs)
+
+-- 绑定过滤器按钮
+if uiRefs.FilterButton then
+    uiRefs.FilterButton.MouseButton1Click:Connect(function()
+        showRatingFilterMenu(uiRefs)
+    end)
+end
 
 if autoLoadLastEquip then
     local loadedCount = loadLastEquipFromFile()
