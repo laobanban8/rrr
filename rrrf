@@ -6035,6 +6035,129 @@ local USEFUL_TEACHABLE_ATTRIBUTE =
     "JJI_UsefulThingCreated"
 
 local usefulThingEnabled = false
+local heavenlyRestrictionCreatedByScript = nil
+local heavenlyRestrictionOriginalValue = nil
+local heavenlyRestrictionWasOriginallyPresent = false
+
+local forceOtherPvpEnabled = false
+local forcedPvpEntries = {}
+local pvpDescendantAddedConnection = nil
+
+local function isOtherPlayerPvpValue(object)
+    return object
+        and object:IsA("BoolValue")
+        and object.Name == "PVP Enabled"
+        and object.Parent
+        and object.Parent.Name == "settings"
+        and not object:IsDescendantOf(player)
+end
+
+local function releaseForcedPvpValue(value, restore)
+    local entry = forcedPvpEntries[value]
+    if not entry then return end
+
+    forcedPvpEntries[value] = nil
+
+    if entry.ValueConnection then
+        entry.ValueConnection:Disconnect()
+    end
+
+    if entry.AncestryConnection then
+        entry.AncestryConnection:Disconnect()
+    end
+
+    if restore and value.Parent then
+        pcall(function()
+            value.Value = entry.OriginalValue
+        end)
+    end
+end
+
+local function forcePvpValue(value)
+    if not forceOtherPvpEnabled
+        or not isOtherPlayerPvpValue(value)
+        or forcedPvpEntries[value]
+    then
+        return false
+    end
+
+    local entry = {
+        OriginalValue = value.Value
+    }
+
+    forcedPvpEntries[value] = entry
+    value.Value = true
+
+    entry.ValueConnection =
+        value:GetPropertyChangedSignal("Value"):Connect(function()
+            if forceOtherPvpEnabled
+                and isOtherPlayerPvpValue(value)
+            then
+                if value.Value ~= true then
+                    value.Value = true
+                end
+            else
+                releaseForcedPvpValue(value, true)
+            end
+        end)
+
+    entry.AncestryConnection = value.AncestryChanged:Connect(function()
+        task.defer(function()
+            if forcedPvpEntries[value]
+                and not isOtherPlayerPvpValue(value)
+            then
+                releaseForcedPvpValue(value, value.Parent ~= nil)
+            end
+        end)
+    end)
+
+    return true
+end
+
+local function setForceOtherPvpEnabled(enabled)
+    enabled = enabled == true
+
+    if enabled == forceOtherPvpEnabled then
+        return true, 0
+    end
+
+    forceOtherPvpEnabled = enabled
+
+    if enabled then
+        local changedCount = 0
+
+        for _, object in ipairs(Players:GetDescendants()) do
+            if forcePvpValue(object) then
+                changedCount += 1
+            end
+        end
+
+        pvpDescendantAddedConnection =
+            Players.DescendantAdded:Connect(function(object)
+                task.defer(function()
+                    forcePvpValue(object)
+                end)
+            end)
+
+        return true, changedCount
+    end
+
+    if pvpDescendantAddedConnection then
+        pvpDescendantAddedConnection:Disconnect()
+        pvpDescendantAddedConnection = nil
+    end
+
+    local values = {}
+    for value in pairs(forcedPvpEntries) do
+        table.insert(values, value)
+    end
+
+    for _, value in ipairs(values) do
+        releaseForcedPvpValue(value, true)
+    end
+
+    return true, #values
+end
 
 local function getUsefulTeachablesFolder(createIfMissing)
     local localPlayer = Players.LocalPlayer
@@ -6087,6 +6210,115 @@ local function syncUsefulThingState()
     end
 
     return usefulThingEnabled
+end
+
+--------------------------------------------------
+-- heavenlyRestriction
+-- 不加入设置保存，只由“一个可能有用的东西”按钮控制
+--------------------------------------------------
+local function getHeavenlyRestrictionValue()
+    local localPlayer = Players.LocalPlayer
+
+    if not localPlayer then
+        return nil, "未找到 LocalPlayer"
+    end
+
+    local replicatedData =
+        localPlayer:FindFirstChild("ReplicatedData")
+        or localPlayer:WaitForChild("ReplicatedData", 3)
+
+    if not replicatedData then
+        return nil, "未找到 ReplicatedData"
+    end
+
+    local value =
+        replicatedData:FindFirstChild("heavenlyRestriction")
+
+    if value and not value:IsA("BoolValue") then
+        return nil,
+            "ReplicatedData.heavenlyRestriction 不是 BoolValue"
+    end
+
+    return value, nil
+end
+
+local function setHeavenlyRestrictionEnabled(enabled)
+    enabled = enabled == true
+
+    local localPlayer = Players.LocalPlayer
+
+    if not localPlayer then
+        return false, "未找到 LocalPlayer"
+    end
+
+    local replicatedData =
+        localPlayer:FindFirstChild("ReplicatedData")
+        or localPlayer:WaitForChild("ReplicatedData", 3)
+
+    if not replicatedData then
+        return false, "未找到 ReplicatedData"
+    end
+
+    local value =
+        replicatedData:FindFirstChild("heavenlyRestriction")
+
+    if value and not value:IsA("BoolValue") then
+        return false,
+            "heavenlyRestriction 不是 BoolValue"
+    end
+
+    --------------------------------------------------
+    -- 启用：强制设置为 true
+    --------------------------------------------------
+    if enabled then
+        if value then
+            -- 只在第一次启用时记录原始值
+            if not heavenlyRestrictionWasOriginallyPresent then
+                heavenlyRestrictionWasOriginallyPresent = true
+                heavenlyRestrictionOriginalValue =
+                    value.Value == true
+            end
+
+            value.Value = true
+        else
+            value = Instance.new("BoolValue")
+            value.Name = "heavenlyRestriction"
+            value.Value = true
+            value:SetAttribute(
+                "JJI_HeavenlyRestrictionCreated",
+                true
+            )
+            value.Parent = replicatedData
+
+            heavenlyRestrictionCreatedByScript = value
+            heavenlyRestrictionWasOriginallyPresent = false
+            heavenlyRestrictionOriginalValue = nil
+        end
+
+        return true
+    end
+
+    --------------------------------------------------
+    -- 禁用：
+    -- 1. 脚本创建的对象：删除
+    -- 2. 原本存在的对象：恢复原始值
+    --------------------------------------------------
+    if heavenlyRestrictionCreatedByScript
+        and heavenlyRestrictionCreatedByScript.Parent
+    then
+        heavenlyRestrictionCreatedByScript:Destroy()
+        heavenlyRestrictionCreatedByScript = nil
+    elseif value
+        and heavenlyRestrictionWasOriginallyPresent
+        and heavenlyRestrictionOriginalValue ~= nil
+    then
+        value.Value = heavenlyRestrictionOriginalValue
+    end
+
+    heavenlyRestrictionWasOriginallyPresent = false
+    heavenlyRestrictionOriginalValue = nil
+
+    return true
 end
 
 local function setUsefulThingEnabled(enabled)
@@ -6833,7 +7065,7 @@ searchBox.Size = UDim2.new(1, -47, 0, 32)
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Name = "ScrollFrame"
     scrollFrame.Position = UDim2.new(0, 5, 0, 38)
-    scrollFrame.Size = UDim2.new(1, -10, 1, -318)
+    scrollFrame.Size = UDim2.new(1, -10, 1, -354)
     scrollFrame.BackgroundColor3 = COLOR_DARK_GRAY
     scrollFrame.BorderSizePixel = 0
     scrollFrame.ScrollBarThickness = 6
@@ -7119,8 +7351,8 @@ equipPreviewLabel.Position = UDim2.new(0, 386, 0, 0)
     --------------------------------------------------
     local autoFrame = Instance.new("Frame")
     autoFrame.Name = "AutoFrame"
-autoFrame.Size = UDim2.new(1, -10, 0, 140)
-autoFrame.Position = UDim2.new(0, 5, 1, -274)
+autoFrame.Size = UDim2.new(1, -10, 0, 176)
+autoFrame.Position = UDim2.new(0, 5, 1, -310)
     autoFrame.BackgroundColor3 = COLOR_MEDIUM_GRAY
     autoFrame.BorderSizePixel = 0
     autoFrame.ZIndex = 1
@@ -7165,16 +7397,13 @@ local autoChantBtn = createToggle(autoFrame, "Auto Chant(WIP)", autoOptions.Chan
 -- 一个可能有用的东西
 --------------------------------------------------
 
--- 从自动保存文件读取状态。
--- 如果以前没有保存过，则默认关闭。
+-- 原有 teachables 状态继续读取旧的持久化状态。
+-- heavenlyRestriction 不读取、不保存，默认关闭。
 usefulThingEnabled = getPersistentToggleState(
     "usefulThing",
     false
 )
 
--- 根据保存状态恢复实际功能。
--- ON：添加缺少的 BoolValue。
--- OFF：只删除脚本创建过的 BoolValue。
 local usefulRestoreOk, usefulRestoreResult =
     setUsefulThingEnabled(usefulThingEnabled)
 
@@ -7184,6 +7413,22 @@ if not usefulRestoreOk then
         usefulRestoreResult
     )
 end
+
+-- 本次脚本启动时强制关闭 heavenlyRestriction。
+-- 如果上一次脚本留下了带标记的对象，则清理它；
+-- 原本存在的对象则恢复为脚本修改前的值。
+local heavenlyRestoreOk, heavenlyRestoreResult =
+    setHeavenlyRestrictionEnabled(false)
+
+if not heavenlyRestoreOk then
+    warn(
+        "[UsefulThing] heavenlyRestriction 初始化失败:",
+        heavenlyRestoreResult
+    )
+end
+
+-- 按钮整体状态以原有 usefulThing 状态为准。
+-- heavenlyRestriction 只会随按钮点击开启，不参与持久化。
 
 local usefulThingButton = Instance.new("TextButton")
 usefulThingButton.Name = "UsefulThingToggleButton"
@@ -7221,12 +7466,23 @@ usefulThingButton.MouseButton1Click:Connect(function()
 
     local targetState = not usefulThingEnabled
 
-    local ok, result =
+    --------------------------------------------------
+    -- 先切换原有 teachables 功能
+    --------------------------------------------------
+    local usefulOk, usefulResult =
         setUsefulThingEnabled(targetState)
 
-    if ok then
-        -- setUsefulThingEnabled() 已经更新了
-        -- usefulThingEnabled，这里只需要保存。
+    --------------------------------------------------
+    -- 再同步 heavenlyRestriction
+    --------------------------------------------------
+    local heavenlyOk, heavenlyResult =
+        setHeavenlyRestrictionEnabled(targetState)
+
+    if usefulOk and heavenlyOk then
+        usefulThingEnabled = targetState
+
+        -- 只保存原有 usefulThing 状态。
+        -- heavenlyRestriction 不写入任何设置文件。
         local saved = setPersistentToggleState(
             "usefulThing",
             targetState
@@ -7242,10 +7498,29 @@ usefulThingButton.MouseButton1Click:Connect(function()
     else
         warn(
             "[UsefulThing] 切换失败:",
-            result
+            usefulOk and "" or usefulResult,
+            heavenlyOk and "" or heavenlyResult
         )
 
-        usefulThingButton.Text = "切换失败"
+        -- 如果 teachables 已成功但 heavenlyRestriction 失败，
+        -- 回滚 teachables，避免按钮和实际状态不一致。
+        if usefulOk and targetState then
+            setUsefulThingEnabled(false)
+        elseif usefulOk and not targetState then
+            setUsefulThingEnabled(true)
+        end
+
+        -- 如果 heavenlyRestriction 已成功但 teachables 失败，
+        -- 同样回滚 heavenlyRestriction。
+        if heavenlyOk and targetState then
+            setHeavenlyRestrictionEnabled(false)
+        elseif heavenlyOk and not targetState then
+            setHeavenlyRestrictionEnabled(true)
+        end
+
+        usefulThingButton.Text =
+            "一个可能有用的东西: 失败"
+
         usefulThingButton.BackgroundColor3 = COLOR_RED
     end
 
@@ -7336,6 +7611,82 @@ godmodeButton.MouseButton1Click:Connect(function()
         if godmodeButton and godmodeButton.Parent then
             godmodeButton.Active = true
             refreshGodmodeButton()
+        end
+    end)
+end)
+
+--------------------------------------------------
+-- 强制启用其他玩家的 PVP Enabled
+--------------------------------------------------
+local forceOtherPvpButton = Instance.new("TextButton")
+forceOtherPvpButton.Name = "ForceOtherPvpButton"
+forceOtherPvpButton.Size = UDim2.fromOffset(290, 28)
+forceOtherPvpButton.Position = UDim2.fromOffset(6, 140)
+forceOtherPvpButton.BackgroundColor3 = COLOR_BTN_BG
+forceOtherPvpButton.TextColor3 = COLOR_WHITE
+forceOtherPvpButton.Font = Enum.Font.GothamBold
+forceOtherPvpButton.TextSize = 11
+forceOtherPvpButton.Text =
+    "强制可攻击其他所有人（需要启用pvp）: OFF"
+forceOtherPvpButton.AutoButtonColor = false
+forceOtherPvpButton.Parent = autoFrame
+
+local forceOtherPvpCorner = Instance.new("UICorner")
+forceOtherPvpCorner.CornerRadius = UDim.new(0, 5)
+forceOtherPvpCorner.Parent = forceOtherPvpButton
+
+local forceOtherPvpHint = Instance.new("TextLabel")
+forceOtherPvpHint.Name = "ForceOtherPvpHint"
+forceOtherPvpHint.Size = UDim2.new(1, -308, 0, 28)
+forceOtherPvpHint.Position = UDim2.fromOffset(302, 140)
+forceOtherPvpHint.BackgroundTransparency = 1
+forceOtherPvpHint.TextColor3 = Color3.fromRGB(220, 220, 225)
+forceOtherPvpHint.Font = Enum.Font.Gotham
+forceOtherPvpHint.TextSize = 11
+forceOtherPvpHint.TextWrapped = true
+forceOtherPvpHint.TextXAlignment = Enum.TextXAlignment.Left
+forceOtherPvpHint.TextYAlignment = Enum.TextYAlignment.Center
+forceOtherPvpHint.Text =
+    "只有可强制选中并强制造成伤害的技能（如tendril类技能）才能攻击他人"
+forceOtherPvpHint.Parent = autoFrame
+
+local function refreshForceOtherPvpButton()
+    forceOtherPvpButton.Text =
+        "强制可攻击其他所有人（需要启用pvp）: "
+        .. (forceOtherPvpEnabled and "ON" or "OFF")
+
+    forceOtherPvpButton.BackgroundColor3 =
+        forceOtherPvpEnabled and COLOR_GREEN or COLOR_BTN_BG
+end
+
+refreshForceOtherPvpButton()
+
+forceOtherPvpButton.MouseButton1Click:Connect(function()
+    if not forceOtherPvpButton.Active then return end
+
+    forceOtherPvpButton.Active = false
+
+    local ok, changedCount = setForceOtherPvpEnabled(
+        not forceOtherPvpEnabled
+    )
+
+    if ok then
+        refreshForceOtherPvpButton()
+        print(
+            "[ForceOtherPVP] 状态:",
+            forceOtherPvpEnabled,
+            "处理数量:",
+            changedCount
+        )
+    else
+        forceOtherPvpButton.Text = "PVP 修改失败"
+        forceOtherPvpButton.BackgroundColor3 = COLOR_RED
+    end
+
+    task.delay(0.7, function()
+        if forceOtherPvpButton and forceOtherPvpButton.Parent then
+            forceOtherPvpButton.Active = true
+            refreshForceOtherPvpButton()
         end
     end)
 end)
@@ -8709,6 +9060,7 @@ AutoCastStopButton = autoCastStopButton,
 ForceChantingButton = chantingButton,
 StatNodeBundleButton = statNodeBundleButton,
 GodmodeButton = godmodeButton,
+ForceOtherPvpButton = forceOtherPvpButton,
 WeaponsTabButton = weaponsTabButton,
 WeaponsPage = weaponsPage,
 WeaponSearchBox = weaponSearchBox,
