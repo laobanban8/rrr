@@ -3213,49 +3213,78 @@ function refreshSkillRatingLabels(skillData, row)
     end
 end
 
-function getInnatesFolder()
-    local rd = player:FindFirstChild("ReplicatedData")
-    if not rd then return nil end
-    local techniques = rd:FindFirstChild("techniques")
-    if not techniques then return nil end
-    local innates = techniques:FindFirstChild("innates")
-    if not innates then return nil end
-    return innates
+function getTechniqueToolFolder(toolType)
+    if toolType ~= "skills" and toolType ~= "innates" then
+        return nil
+    end
+
+    local replicatedData =
+        player:FindFirstChild("ReplicatedData")
+
+    if not replicatedData then
+        return nil
+    end
+
+    local techniques =
+        replicatedData:FindFirstChild("techniques")
+
+    if not techniques then
+        return nil
+    end
+
+    return techniques:FindFirstChild(toolType)
 end
 
-function getInnateKeysFromFolder()
-    local innates = getInnatesFolder()
+-- 保留旧函数，原有装备、方案和预览继续默认使用 innates。
+function getInnatesFolder()
+    return getTechniqueToolFolder("innates")
+end
+
+function getTechniqueKeysFromFolder(toolType)
+    local toolFolder = getTechniqueToolFolder(toolType)
     local found = {}
     local ordered = {}
 
-    if innates then
-        for _, obj in ipairs(innates:GetChildren()) do
-            if obj:IsA("StringValue") then
-                found[string.upper(obj.Name)] = true
+    if toolFolder then
+        for _, object in ipairs(toolFolder:GetChildren()) do
+            if object:IsA("StringValue") then
+                found[string.upper(object.Name)] = true
             end
         end
     end
 
-    -- 按默认顺序输出，而不是字母排序
-    for _, k in ipairs(DEFAULT_EQUIP_KEYS) do
-        if found[k] then
-            table.insert(ordered, k)
-            found[k] = nil
+    for _, keyName in ipairs(DEFAULT_EQUIP_KEYS) do
+        if found[keyName] then
+            table.insert(ordered, keyName)
+            found[keyName] = nil
         end
     end
 
-    -- 如果有额外键位，不在默认表里，再补到后面
+    local extraKeys = {}
+
     for keyName in pairs(found) do
+        table.insert(extraKeys, keyName)
+    end
+
+    table.sort(extraKeys)
+
+    for _, keyName in ipairs(extraKeys) do
         table.insert(ordered, keyName)
     end
 
+    -- 文件夹不存在或没有键位时仍显示默认键位。
     if #ordered == 0 then
-        for _, k in ipairs(DEFAULT_EQUIP_KEYS) do
-            table.insert(ordered, k)
+        for _, keyName in ipairs(DEFAULT_EQUIP_KEYS) do
+            table.insert(ordered, keyName)
         end
     end
 
     return ordered
+end
+
+-- 保留旧函数名，避免影响现有调用。
+function getInnateKeysFromFolder()
+    return getTechniqueKeysFromFolder("innates")
 end
 
 function parseKeyOrderText(text)
@@ -3321,22 +3350,42 @@ function refreshEquipPreview()
     end
 end
 
-function equipSkillToKey(skillName, keyName)
-    local innates = getInnatesFolder()
-    if not innates then
-        warn("[Equip] 未找到路径 ReplicatedData.techniques.innates")
-        return false
+function equipSkillToKey(skillName, keyName, toolType)
+    -- 兼容旧调用：未传工具类型时仍然装备到 innates。
+    toolType = toolType or "innates"
+
+    if toolType ~= "skills" and toolType ~= "innates" then
+        warn("[Equip] 无效工具类型:", toolType)
+        return false, "无效工具类型"
     end
 
-    local keyObj = findChildLoose(innates, keyName)
-    if not keyObj or not keyObj:IsA("StringValue") then
-        warn("[Equip] 键位不存在或不是StringValue:", keyName)
-        return false
+    local toolFolder = getTechniqueToolFolder(toolType)
+
+    if not toolFolder then
+        warn(
+            "[Equip] 未找到路径 ReplicatedData.techniques."
+            .. toolType
+        )
+
+        return false, "未找到 " .. toolType .. " 工具"
     end
 
-    keyObj.Value = skillName
+    local keyObject = findChildLoose(toolFolder, keyName)
+
+    if not keyObject or not keyObject:IsA("StringValue") then
+        warn(
+            "[Equip] 键位不存在或不是 StringValue:",
+            toolType,
+            keyName
+        )
+
+        return false, "键位不存在"
+    end
+
+    keyObject.Value = skillName
     return true
 end
+
 function collectCurrentEquipMapping()
     local innates = getInnatesFolder()
     local mapping = {}
@@ -8738,11 +8787,9 @@ local function showEquipContextMenu(skillData)
     local old = uiRefs.ScreenGui:FindFirstChild("EquipContextMenu")
     if old then old:Destroy() end
 
-    local keys = getInnateKeysFromFolder()
-
     local menu = Instance.new("Frame")
     menu.Name = "EquipContextMenu"
-    menu.Size = UDim2.fromOffset(680, 176) -- 高度加大，给复制按钮留位置
+    menu.Size = UDim2.fromOffset(460, 310) -- 高度加大，给复制按钮留位置
     menu.BackgroundColor3 = COLOR_MEDIUM_GRAY
     menu.BorderSizePixel = 0
     menu.ZIndex = 200
@@ -8762,13 +8809,13 @@ local camera = workspace.CurrentCamera
     local x = math.clamp(
         mouse.X - inset.X,
         0,
-        math.max(0, viewport.X - 680)
+        math.max(0, viewport.X - 460)
     )
 
     local y = math.clamp(
         mouse.Y - inset.Y,
         0,
-        math.max(0, viewport.Y - 176)
+        math.max(0, viewport.Y - 310)
     )
 
     menu.Position = UDim2.fromOffset(x, y)
@@ -8785,133 +8832,191 @@ local camera = workspace.CurrentCamera
     title.ZIndex = 201
     title.Parent = menu
 
-function createEquipSection(
-        xOffset,
-        sectionTitle,
-        equipCallback
-    )
-        local section = Instance.new("Frame")
-        section.Size = UDim2.fromOffset(220, 106)
-        section.Position = UDim2.fromOffset(xOffset, 26)
-        section.BackgroundTransparency = 1
-        section.ZIndex = 201
-        section.Parent = menu
+local function createEquipSection(
+    xOffset,
+    yOffset,
+    sectionTitle,
+    toolType,
+    equipCallback
+)
+    local section = Instance.new("Frame")
+    section.Size = UDim2.fromOffset(220, 120)
+    section.Position = UDim2.fromOffset(xOffset, yOffset)
+    section.BackgroundColor3 = COLOR_DARK_GRAY
+    section.BorderSizePixel = 0
+    section.ZIndex = 201
+    section.Parent = menu
 
-        local sectionLabel = Instance.new("TextLabel")
-        sectionLabel.Size = UDim2.new(1, -4, 0, 20)
-        sectionLabel.Position = UDim2.fromOffset(2, 0)
-        sectionLabel.BackgroundTransparency = 1
-        sectionLabel.Text = sectionTitle
-        sectionLabel.TextColor3 = COLOR_WHITE
-        sectionLabel.Font = Enum.Font.GothamBold
-        sectionLabel.TextSize = 10
-        sectionLabel.TextXAlignment = Enum.TextXAlignment.Left
-        sectionLabel.ZIndex = 202
-        sectionLabel.Parent = section
+    local sectionCorner = Instance.new("UICorner")
+    sectionCorner.CornerRadius = UDim.new(0, 5)
+    sectionCorner.Parent = section
 
-        local grid = Instance.new("Frame")
-        grid.Size = UDim2.new(1, -4, 0, 68)
-        grid.Position = UDim2.fromOffset(2, 22)
-        grid.BackgroundTransparency = 1
-        grid.ZIndex = 201
-        grid.Parent = section
+    local sectionLabel = Instance.new("TextLabel")
+    sectionLabel.Size = UDim2.new(1, -8, 0, 42)
+    sectionLabel.Position = UDim2.fromOffset(4, 2)
+    sectionLabel.BackgroundTransparency = 1
+    sectionLabel.Text = sectionTitle .. "\n工具: " .. toolType
+    sectionLabel.TextColor3 = COLOR_WHITE
+    sectionLabel.Font = Enum.Font.GothamBold
+    sectionLabel.TextSize = 10
+    sectionLabel.TextWrapped = true
+    sectionLabel.TextXAlignment = Enum.TextXAlignment.Left
+    sectionLabel.TextYAlignment = Enum.TextYAlignment.Center
+    sectionLabel.ZIndex = 202
+    sectionLabel.Parent = section
 
-        local layout = Instance.new("UIGridLayout")
-        layout.CellPadding = UDim2.fromOffset(4, 4)
-        layout.CellSize = UDim2.fromOffset(48, 30)
-        layout.FillDirectionMaxCells = 4
-        layout.Parent = grid
+    local grid = Instance.new("Frame")
+    grid.Size = UDim2.new(1, -8, 0, 68)
+    grid.Position = UDim2.fromOffset(4, 46)
+    grid.BackgroundTransparency = 1
+    grid.ZIndex = 201
+    grid.Parent = section
 
-        for _, keyName in ipairs(keys) do
-            local currentKey = keyName
-            local btn = Instance.new("TextButton")
-            btn.Text = currentKey
-            btn.BackgroundColor3 = COLOR_BTN_BG
-            btn.TextColor3 = COLOR_WHITE
-            btn.Font = Enum.Font.GothamBold
-            btn.TextSize = 12
-            btn.AutoButtonColor = false
-            btn.ZIndex = 202
-            btn.Parent = grid
+    local layout = Instance.new("UIGridLayout")
+    layout.CellPadding = UDim2.fromOffset(4, 4)
+    layout.CellSize = UDim2.fromOffset(48, 30)
+    layout.FillDirectionMaxCells = 4
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = grid
 
-            local buttonCorner = Instance.new("UICorner")
-            buttonCorner.CornerRadius = UDim.new(0, 4)
-            buttonCorner.Parent = btn
+    local keys = getTechniqueKeysFromFolder(toolType)
 
-            btn.MouseButton1Click:Connect(function()
-                if not btn.Active then return end
-                btn.Active = false
+    for keyOrder, keyName in ipairs(keys) do
+        local currentKey = keyName
 
-                local ok, result = equipCallback(currentKey)
+        local button = Instance.new("TextButton")
+        button.Name = toolType .. "_" .. currentKey
+        button.LayoutOrder = keyOrder
+        button.Text = currentKey
+        button.BackgroundColor3 = COLOR_BTN_BG
+        button.TextColor3 = COLOR_WHITE
+        button.Font = Enum.Font.GothamBold
+        button.TextSize = 12
+        button.AutoButtonColor = false
+        button.ZIndex = 202
+        button.Parent = grid
 
-                if ok then
-                    btn.Text = "完成"
-                    btn.BackgroundColor3 = COLOR_SUCCESS
+        local buttonCorner = Instance.new("UICorner")
+        buttonCorner.CornerRadius = UDim.new(0, 4)
+        buttonCorner.Parent = button
 
-                    task.delay(0.2, function()
-                        if menu and menu.Parent then
-                            menu:Destroy()
-                        end
-                    end)
-                else
-                    btn.Text = "失败"
-                    btn.BackgroundColor3 = COLOR_RED
-                    warn("[EquipContext] 装备失败:", result)
+        button.MouseButton1Click:Connect(function()
+            if not button.Active then
+                return
+            end
 
-                    task.delay(0.8, function()
-                        if btn and btn.Parent then
-                            btn.Text = currentKey
-                            btn.BackgroundColor3 = COLOR_BTN_BG
-                            btn.Active = true
-                        end
-                    end)
-                end
-            end)
-        end
+            button.Active = false
+
+            local ok, result = equipCallback(currentKey)
+
+            if ok then
+                button.Text = "完成"
+                button.BackgroundColor3 = COLOR_SUCCESS
+
+                task.delay(0.25, function()
+                    if menu and menu.Parent then
+                        menu:Destroy()
+                    end
+                end)
+            else
+                button.Text = "失败"
+                button.BackgroundColor3 = COLOR_RED
+
+                warn(
+                    "[EquipContext] 装备失败:",
+                    toolType,
+                    currentKey,
+                    result
+                )
+
+                task.delay(0.8, function()
+                    if button and button.Parent then
+                        button.Text = currentKey
+                        button.BackgroundColor3 = COLOR_BTN_BG
+                        button.Active = true
+                    end
+                end)
+            end
+        end)
     end
+end
 
-    --------------------------------------------------
-    -- 原有客户端键位修改
-    --------------------------------------------------
-    createEquipSection(4, "装备到键位（不需要精通等级）（客户端）", function(keyName)
-        local ok = equipSkillToKey(skillData.name, keyName)
+local CLIENT_EQUIP_TITLE =
+    "装备到键位（不需要精通等级）（客户端）"
+
+local SERVER_EQUIP_TITLE =
+    "强制装备到键位（永久的 服务器端的）（需要精通等级）"
+
+--------------------------------------------------
+-- 第一排：客户端直接修改技能键位
+--------------------------------------------------
+createEquipSection(
+    4,
+    26,
+    CLIENT_EQUIP_TITLE,
+    "skills",
+    function(keyName)
+        local ok, result = equipSkillToKey(
+            skillData.name,
+            keyName,
+            "skills"
+        )
+
+        return ok, result
+    end
+)
+
+createEquipSection(
+    230,
+    26,
+    CLIENT_EQUIP_TITLE,
+    "innates",
+    function(keyName)
+        local ok, result = equipSkillToKey(
+            skillData.name,
+            keyName,
+            "innates"
+        )
 
         if ok then
+            -- 原有存档对应 innates 工具，继续保留该行为。
             saveLastEquipToFile()
         end
 
-        return ok, ok and nil or "客户端装备失败"
-    end)
+        return ok, result
+    end
+)
 
-    --------------------------------------------------
-    -- 服务器端强制装备到 skills 工具
-    --------------------------------------------------
-    createEquipSection(
-        230,
-        "强制装备到键位（skills / 永久服务器端）（需要精通等级）",
-        function(keyName)
-            return forceEquipSkillToServer(
-                skillData,
-                "skills",
-                keyName
-            )
-        end
-    )
+--------------------------------------------------
+-- 第二排：服务器永久装备，需要满足精通等级
+--------------------------------------------------
+createEquipSection(
+    4,
+    150,
+    SERVER_EQUIP_TITLE,
+    "skills",
+    function(keyName)
+        return forceEquipSkillToServer(
+            skillData,
+            "skills",
+            keyName
+        )
+    end
+)
 
-    --------------------------------------------------
-    -- 服务器端强制装备到 innates 工具
-    --------------------------------------------------
-    createEquipSection(
-        456,
-        "强制装备到键位（innates / 永久服务器端）（需要精通等级）",
-        function(keyName)
-            return forceEquipSkillToServer(
-                skillData,
-                "innates",
-                keyName
-            )
-        end
-    )
+createEquipSection(
+    230,
+    150,
+    SERVER_EQUIP_TITLE,
+    "innates",
+    function(keyName)
+        return forceEquipSkillToServer(
+            skillData,
+            "innates",
+            keyName
+        )
+    end
+)
 
 
 
