@@ -8873,7 +8873,7 @@ function createEquipSection(
     --------------------------------------------------
     -- 原有客户端键位修改
     --------------------------------------------------
-    createEquipSection(4, "装备到键位", function(keyName)
+    createEquipSection(4, "装备到键位（不需要精通等级）（客户端）", function(keyName)
         local ok = equipSkillToKey(skillData.name, keyName)
 
         if ok then
