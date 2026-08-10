@@ -6780,7 +6780,9 @@ manualText.AutomaticSize = Enum.AutomaticSize.Y
 manualText.ZIndex = 602
 manualText.Parent = manualScrollFrame
 
-manualText.Text = [[使用Godmode功能后除了领域可以让你自由移动的技能有如下
+manualText.Text = [[Tip:部分功能需要右键来使用
+    
+    使用Godmode功能后除了领域可以让你自由移动的技能有如下
 
 Bloodlust,
 Boogie Woogie: Counter Suplex(触发防反）,
