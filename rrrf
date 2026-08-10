@@ -5222,7 +5222,7 @@ end
 end
 
 -- 辅助：判断 Folder 中是否原生存在某属性（Attribute 或子对象）
-local function hasAttributeOrChild(folder, name)
+function hasAttributeOrChild(folder, name)
     if folder:GetAttribute(name) ~= nil then
         return true
     end
@@ -5239,7 +5239,7 @@ local function hasAttributeOrChild(folder, name)
 end
 
 -- 将指定值写回到 folder（创建或修改），并返回是否原本存在与原值（用于记录）
-local function setOrCreateValue(folder, name, className, value)
+function setOrCreateValue(folder, name, className, value)
     local origExists = false
     local origValue = nil
     local obj = findChildLoose(folder, name)
@@ -5278,7 +5278,7 @@ end
 
 -- 主：运行时自动批量修改技能属性并记录“原生/脚本”标记
 -- 自动批量修改并记录原生标记（已去掉 goto，用 if/else 处理）
-local function applyAutoBulkEdit()
+function applyAutoBulkEdit()
     -- 必须保证 scannedSkills 已经被填充（scanSkills 已运行）
     for _, skillData in ipairs(scannedSkills) do
         local folder = skillData.folder
@@ -5351,13 +5351,13 @@ for _, ratingName in ipairs(RATING_ORDER) do
     end
 end
 
-local function trimRatingText(value)
+function trimRatingText(value)
     return tostring(value or "")
         :gsub("^%s+", "")
         :gsub("%s+$", "")
 end
 
-local function getPrimaryRating(value)
+function getPrimaryRating(value)
     local text = trimRatingText(
         compactRatingVariant(value)
     )
@@ -5370,7 +5370,7 @@ local function getPrimaryRating(value)
     return trimRatingText(primary or text)
 end
 
-local function isElseRating(value)
+function isElseRating(value)
     local primaryRating = getPrimaryRating(value)
 
     -- 必须完整等于一个标准评级。
@@ -5575,8 +5575,8 @@ function loadLoadoutByName(loadoutName)
     return true, count, name
 end
 
-local function setupEquip(ui)
-    local function refreshAutoLoadBtn()
+function setupEquip(ui)
+    function refreshAutoLoadBtn()
         if not ui.AutoLoadToggleButton then return end
         ui.AutoLoadToggleButton.Text = "自动加载:" .. (autoLoadLastEquip and "ON" or "OFF")
         ui.AutoLoadToggleButton.BackgroundColor3 = autoLoadLastEquip and COLOR_GREEN or COLOR_BTN_BG
@@ -5939,7 +5939,7 @@ openSequenceEditorWindow = function(ui)
     end)
 end
 
-local function fireSelectedSkills()
+function fireSelectedSkills()
     local any = false
     for name in pairs(selectedSkills) do
         local skillData = skillMap[name]
@@ -5951,7 +5951,7 @@ local function fireSelectedSkills()
     return any
 end
 
-local function fireAutoTaggedSelectedSkills()
+function fireAutoTaggedSelectedSkills()
     if not isShiftLockEnabled() then
         return
     end
@@ -6001,7 +6001,7 @@ local STAT_NODE_BUNDLE = {
     { name = "Supersonic Dashes", value = 1 }
 }
 
-local function getStatNodesFolder()
+function getStatNodesFolder()
     local localPlayer = Players.LocalPlayer
     if not localPlayer then
         return nil
@@ -6043,7 +6043,7 @@ local forceOtherPvpEnabled = false
 local forcedPvpEntries = {}
 local pvpDescendantAddedConnection = nil
 
-local function isOtherPlayerPvpValue(object)
+function isOtherPlayerPvpValue(object)
     return object
         and object:IsA("BoolValue")
         and object.Name == "PVP Enabled"
@@ -6052,7 +6052,7 @@ local function isOtherPlayerPvpValue(object)
         and not object:IsDescendantOf(player)
 end
 
-local function releaseForcedPvpValue(value, restore)
+function releaseForcedPvpValue(value, restore)
     local entry = forcedPvpEntries[value]
     if not entry then return end
 
@@ -6073,7 +6073,7 @@ local function releaseForcedPvpValue(value, restore)
     end
 end
 
-local function forcePvpValue(value)
+function forcePvpValue(value)
     if not forceOtherPvpEnabled
         or not isOtherPlayerPvpValue(value)
         or forcedPvpEntries[value]
@@ -6114,7 +6114,7 @@ local function forcePvpValue(value)
     return true
 end
 
-local function setForceOtherPvpEnabled(enabled)
+function setForceOtherPvpEnabled(enabled)
     enabled = enabled == true
 
     if enabled == forceOtherPvpEnabled then
@@ -6159,7 +6159,7 @@ local function setForceOtherPvpEnabled(enabled)
     return true, #values
 end
 
-local function getUsefulTeachablesFolder(createIfMissing)
+function getUsefulTeachablesFolder(createIfMissing)
     local localPlayer = Players.LocalPlayer
     if not localPlayer then
         return nil, "未找到 LocalPlayer"
@@ -6189,7 +6189,7 @@ local function getUsefulTeachablesFolder(createIfMissing)
     return teachables
 end
 
-local function syncUsefulThingState()
+function syncUsefulThingState()
     usefulThingEnabled = false
 
     local teachables = getUsefulTeachablesFolder(false)
@@ -6216,7 +6216,7 @@ end
 -- heavenlyRestriction
 -- 不加入设置保存，只由“一个可能有用的东西”按钮控制
 --------------------------------------------------
-local function getHeavenlyRestrictionValue()
+function getHeavenlyRestrictionValue()
     local localPlayer = Players.LocalPlayer
 
     if not localPlayer then
@@ -6242,7 +6242,7 @@ local function getHeavenlyRestrictionValue()
     return value, nil
 end
 
-local function setHeavenlyRestrictionEnabled(enabled)
+function setHeavenlyRestrictionEnabled(enabled)
     enabled = enabled == true
 
     local localPlayer = Players.LocalPlayer
@@ -6321,7 +6321,7 @@ local function setHeavenlyRestrictionEnabled(enabled)
     return true
 end
 
-local function setUsefulThingEnabled(enabled)
+function setUsefulThingEnabled(enabled)
     enabled = enabled == true
 
     local teachables, folderError =
@@ -6377,7 +6377,7 @@ local function setUsefulThingEnabled(enabled)
     return true, changedCount
 end
 
-local function setChantingEnabled(enabled)
+function setChantingEnabled(enabled)
     chantingEnabled = enabled == true
     local statNodes = getStatNodesFolder()
     if not statNodes then return false, "未找到 statNodes" end
@@ -6405,7 +6405,7 @@ local function setChantingEnabled(enabled)
     return true
 end
 
-local function setStatNodeBundleEnabled(enabled)
+function setStatNodeBundleEnabled(enabled)
     statNodeBundleEnabled = enabled == true
     local statNodes = getStatNodesFolder()
     if not statNodes then return false, "未找到 statNodes" end
@@ -6433,7 +6433,7 @@ end
 --------------------------------------------------
 -- UI CREATION
 --------------------------------------------------
-local function createToggle(parent, text, defaultValue, position, callback)
+function createToggle(parent, text, defaultValue, position, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 130, 0, 28)
     btn.Position = position
@@ -6466,7 +6466,7 @@ btn.MouseButton1Click:Connect(function()
     return btn
 end
 
-local function createToggle(
+function createToggle(
     parent,
     text,
     defaultValue,
@@ -6507,7 +6507,7 @@ local function createToggle(
     corner.CornerRadius = UDim.new(0, 5)
     corner.Parent = btn
 
-    local function refresh()
+    function refresh()
         btn.BackgroundColor3 =
             state and COLOR_GREEN or COLOR_BTN_BG
 
@@ -6533,7 +6533,7 @@ local function createToggle(
     return btn
 end
 
-local function createSkillUI()
+function createSkillUI()
     local playerGui = player:WaitForChild("PlayerGui")
 
     -- 清理旧主UI
@@ -6597,7 +6597,8 @@ frame.Position = UDim2.new(0.5, -620, 0.5, -325)
     titleCorner.Parent = titleBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, -52, 1, 0)
+-- 给右侧“说明书”和“设置”按钮预留空间
+titleLabel.Size = UDim2.new(1, -128, 1, 0)
 titleLabel.Position = UDim2.fromOffset(10, 0)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "Jujustu Infinite破解面板"
@@ -6617,6 +6618,358 @@ settingsButton.TextColor3 = COLOR_WHITE
 settingsButton.Font = Enum.Font.GothamBold
 settingsButton.TextSize = 22
 settingsButton.Parent = titleBar
+
+--------------------------------------------------
+-- 说明书按钮
+--------------------------------------------------
+local manualButton = Instance.new("TextButton")
+manualButton.Name = "ManualButton"
+manualButton.Size = UDim2.fromOffset(72, 30)
+manualButton.Position = UDim2.new(1, -110, 0, 2)
+manualButton.BackgroundColor3 = COLOR_BTN_BG
+manualButton.TextColor3 = COLOR_WHITE
+manualButton.Font = Enum.Font.GothamBold
+manualButton.TextSize = 12
+manualButton.Text = "说明书"
+manualButton.AutoButtonColor = false
+manualButton.Parent = titleBar
+
+local manualButtonCorner = Instance.new("UICorner")
+manualButtonCorner.CornerRadius = UDim.new(0, 5)
+manualButtonCorner.Parent = manualButton
+
+--------------------------------------------------
+-- 说明书窗口
+--------------------------------------------------
+local manualFrame = Instance.new("Frame")
+manualFrame.Name = "ManualFrame"
+manualFrame.Size = UDim2.fromOffset(780, 540)
+manualFrame.Position = UDim2.new(0.5, -390, 0.5, -270)
+manualFrame.BackgroundColor3 = COLOR_DARK_GRAY
+manualFrame.BorderSizePixel = 0
+manualFrame.Visible = false
+manualFrame.Active = true
+manualFrame.ZIndex = 600
+manualFrame.Parent = screenGui
+
+local manualFrameCorner = Instance.new("UICorner")
+manualFrameCorner.CornerRadius = UDim.new(0, 8)
+manualFrameCorner.Parent = manualFrame
+
+local manualFrameStroke = Instance.new("UIStroke")
+manualFrameStroke.Name = "ManualFrameStroke"
+manualFrameStroke.ApplyStrokeMode =
+    Enum.ApplyStrokeMode.Border
+manualFrameStroke.Color =
+    Color3.fromRGB(90, 90, 105)
+manualFrameStroke.Transparency = 0.15
+manualFrameStroke.Thickness = 1
+manualFrameStroke.Parent = manualFrame
+
+--------------------------------------------------
+-- 说明书标题栏
+--------------------------------------------------
+local manualTitleBar = Instance.new("Frame")
+manualTitleBar.Name = "ManualTitleBar"
+manualTitleBar.Size = UDim2.new(1, 0, 0, 40)
+manualTitleBar.BackgroundColor3 = COLOR_TITLE_BG
+manualTitleBar.BorderSizePixel = 0
+manualTitleBar.Active = true
+manualTitleBar.ZIndex = 601
+manualTitleBar.Parent = manualFrame
+
+local manualTitleCorner = Instance.new("UICorner")
+manualTitleCorner.CornerRadius = UDim.new(0, 8)
+manualTitleCorner.Parent = manualTitleBar
+
+-- 遮住标题栏底部两个圆角，让底部保持平直
+local manualTitleBottomCover = Instance.new("Frame")
+manualTitleBottomCover.Name = "BottomCover"
+manualTitleBottomCover.Size = UDim2.new(1, 0, 0, 8)
+manualTitleBottomCover.Position = UDim2.new(0, 0, 1, -8)
+manualTitleBottomCover.BackgroundColor3 = COLOR_TITLE_BG
+manualTitleBottomCover.BorderSizePixel = 0
+manualTitleBottomCover.ZIndex = 601
+manualTitleBottomCover.Parent = manualTitleBar
+
+local manualTitleLabel = Instance.new("TextLabel")
+manualTitleLabel.Name = "ManualTitleLabel"
+manualTitleLabel.Size = UDim2.new(1, -58, 1, 0)
+manualTitleLabel.Position = UDim2.fromOffset(12, 0)
+manualTitleLabel.BackgroundTransparency = 1
+manualTitleLabel.Text = "说明书"
+manualTitleLabel.TextColor3 = COLOR_WHITE
+manualTitleLabel.Font = Enum.Font.GothamBold
+manualTitleLabel.TextSize = 15
+manualTitleLabel.TextXAlignment =
+    Enum.TextXAlignment.Left
+manualTitleLabel.ZIndex = 602
+manualTitleLabel.Parent = manualTitleBar
+
+local closeManualButton = Instance.new("TextButton")
+closeManualButton.Name = "CloseManualButton"
+closeManualButton.Size = UDim2.fromOffset(32, 30)
+closeManualButton.Position = UDim2.new(1, -38, 0, 5)
+closeManualButton.BackgroundColor3 = COLOR_RED
+closeManualButton.TextColor3 = COLOR_WHITE
+closeManualButton.Font = Enum.Font.GothamBold
+closeManualButton.TextSize = 13
+closeManualButton.Text = "X"
+closeManualButton.AutoButtonColor = false
+closeManualButton.ZIndex = 603
+closeManualButton.Parent = manualTitleBar
+
+local closeManualCorner = Instance.new("UICorner")
+closeManualCorner.CornerRadius = UDim.new(0, 5)
+closeManualCorner.Parent = closeManualButton
+
+--------------------------------------------------
+-- 内容滚动区域
+--------------------------------------------------
+local manualScrollFrame = Instance.new("ScrollingFrame")
+manualScrollFrame.Name = "ManualScrollFrame"
+manualScrollFrame.Size = UDim2.new(1, -20, 1, -58)
+manualScrollFrame.Position = UDim2.fromOffset(10, 48)
+manualScrollFrame.BackgroundColor3 = COLOR_MEDIUM_GRAY
+manualScrollFrame.BorderSizePixel = 0
+manualScrollFrame.ScrollBarThickness = 7
+manualScrollFrame.ScrollBarImageColor3 =
+    Color3.fromRGB(150, 150, 165)
+manualScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+manualScrollFrame.ScrollingDirection =
+    Enum.ScrollingDirection.Y
+manualScrollFrame.ZIndex = 601
+manualScrollFrame.Parent = manualFrame
+
+local manualScrollCorner = Instance.new("UICorner")
+manualScrollCorner.CornerRadius = UDim.new(0, 6)
+manualScrollCorner.Parent = manualScrollFrame
+
+local manualPadding = Instance.new("UIPadding")
+manualPadding.PaddingTop = UDim.new(0, 12)
+manualPadding.PaddingBottom = UDim.new(0, 12)
+manualPadding.PaddingLeft = UDim.new(0, 14)
+manualPadding.PaddingRight = UDim.new(0, 14)
+manualPadding.Parent = manualScrollFrame
+
+--------------------------------------------------
+-- 说明文字
+--------------------------------------------------
+local manualText = Instance.new("TextLabel")
+manualText.Name = "ManualText"
+manualText.Size = UDim2.new(1, -4, 0, 0)
+manualText.BackgroundTransparency = 1
+manualText.TextColor3 = COLOR_WHITE
+manualText.Font = Enum.Font.Gotham
+manualText.TextSize = 14
+manualText.TextWrapped = true
+manualText.RichText = false
+manualText.TextXAlignment =
+    Enum.TextXAlignment.Left
+manualText.TextYAlignment =
+    Enum.TextYAlignment.Top
+manualText.AutomaticSize = Enum.AutomaticSize.Y
+manualText.ZIndex = 602
+manualText.Parent = manualScrollFrame
+
+manualText.Text = [[使用Godmode功能后除了领域可以让你自由移动的技能有如下
+
+Bloodlust,
+Boogie Woogie: Counter Suplex(触发防反）,
+Burn Scars V2: Destroy Everything,
+Burn Scars V2: Scarred Return(不需要触发防反),
+Chained Dropkick(需要命中),
+Curse Queen: Demonic Toss(不需要命中),
+Demon Vessel: Switch,
+Flourish Strike(需要命中),
+Hydrokinesis: Water Jet,
+Judgeman: Confiscation(需要命中),
+Judgeman: Objection(需要命中),
+Judo Throw(不需要命中),
+Jutsushi Goroshi(需要命中),
+Kokusen,
+Maximum: Absolute Mode,
+Maximum: Black Flash Beatdown,
+Maximum: Heian Awakening,
+Maximum: Instant Spirit Body of Distorted Killing,
+Maximum: Meteor,
+Maximum: Mythical Beast Amber,
+Maximum: True Sphere,
+Projection: Frame Counter(触发防反),
+Projection: Frame Rewind(二段),
+Projection: Framestack Punch,
+Puppet: Cursed Shock,
+Puppet: Plasma Core Overdrive,
+Puppet: Shock Blade(需要命中),
+Ratio Technique: Overtime,
+Rift Onslaught(需要命中),
+Shadow Strike,
+Shoulder Throw(不需要命中),
+Soul Manipulation: Flesh Drill(不需要命中),
+Soul Manipulation: Soul Touch(需要命中),
+Star Rage: Oberon,
+Test Domain Malevolent,
+Test Domain Unlimited,
+Throat Gouge(需要命中),
+Thunder God: Energized Sprint,
+Thunder God: Sonic Speed,
+Veil,
+Warping Ambush(需要命中),
+Warping Calamity
+
+其余：
+Sparks Of Black]]
+
+--------------------------------------------------
+-- 根据文字高度更新滚动范围
+--------------------------------------------------
+function refreshManualCanvas()
+    if not manualText
+        or not manualText.Parent
+        or not manualScrollFrame
+        or not manualScrollFrame.Parent
+    then
+        return
+    end
+
+    manualScrollFrame.CanvasSize = UDim2.new(
+        0,
+        0,
+        0,
+        manualText.AbsoluteSize.Y + 28
+    )
+end
+
+manualText:GetPropertyChangedSignal(
+    "AbsoluteSize"
+):Connect(refreshManualCanvas)
+
+manualScrollFrame:GetPropertyChangedSignal(
+    "AbsoluteSize"
+):Connect(refreshManualCanvas)
+
+task.defer(refreshManualCanvas)
+
+--------------------------------------------------
+-- 防止说明书窗口完全拖出屏幕
+--------------------------------------------------
+function clampManualFrameToScreen()
+    if not manualFrame or not manualFrame.Parent then
+        return
+    end
+
+    local camera = workspace.CurrentCamera
+    local viewportSize =
+        camera and camera.ViewportSize
+        or Vector2.new(1920, 1080)
+
+    local frameSize = manualFrame.AbsoluteSize
+    local framePosition = manualFrame.AbsolutePosition
+
+    local correctedX = math.clamp(
+        framePosition.X,
+        0,
+        math.max(0, viewportSize.X - frameSize.X)
+    )
+
+    local correctedY = math.clamp(
+        framePosition.Y,
+        0,
+        math.max(0, viewportSize.Y - frameSize.Y)
+    )
+
+    local offsetX = correctedX - framePosition.X
+    local offsetY = correctedY - framePosition.Y
+
+    if offsetX ~= 0 or offsetY ~= 0 then
+        manualFrame.Position = UDim2.new(
+            manualFrame.Position.X.Scale,
+            manualFrame.Position.X.Offset + offsetX,
+            manualFrame.Position.Y.Scale,
+            manualFrame.Position.Y.Offset + offsetY
+        )
+    end
+end
+
+--------------------------------------------------
+-- 说明书窗口拖动
+--------------------------------------------------
+local manualDragging = false
+local manualDragStart = nil
+local manualStartPosition = nil
+local manualDragInput = nil
+
+manualTitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType
+            == Enum.UserInputType.MouseButton1
+        or input.UserInputType
+            == Enum.UserInputType.Touch
+    then
+        manualDragging = true
+        manualDragStart = input.Position
+        manualStartPosition = manualFrame.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState
+                == Enum.UserInputState.End
+            then
+                manualDragging = false
+                clampManualFrameToScreen()
+            end
+        end)
+    end
+end)
+
+manualTitleBar.InputChanged:Connect(function(input)
+    if input.UserInputType
+            == Enum.UserInputType.MouseMovement
+        or input.UserInputType
+            == Enum.UserInputType.Touch
+    then
+        manualDragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if not manualDragging
+        or input ~= manualDragInput
+        or not manualDragStart
+        or not manualStartPosition
+    then
+        return
+    end
+
+    local delta = input.Position - manualDragStart
+
+    manualFrame.Position = UDim2.new(
+        manualStartPosition.X.Scale,
+        manualStartPosition.X.Offset + delta.X,
+        manualStartPosition.Y.Scale,
+        manualStartPosition.Y.Offset + delta.Y
+    )
+end)
+
+--------------------------------------------------
+-- 打开与关闭说明书
+--------------------------------------------------
+manualButton.MouseButton1Click:Connect(function()
+    manualFrame.Visible = not manualFrame.Visible
+
+    if manualFrame.Visible then
+        -- 每次打开时返回文字顶部
+        manualScrollFrame.CanvasPosition =
+            Vector2.new(0, 0)
+
+        task.defer(function()
+            refreshManualCanvas()
+            clampManualFrameToScreen()
+        end)
+    end
+end)
+
+closeManualButton.MouseButton1Click:Connect(function()
+    manualFrame.Visible = false
+end)
 
 local settingsFrame = Instance.new("Frame")
 settingsFrame.Name = "SettingsFrame"
@@ -6670,7 +7023,7 @@ local settingsLayout = Instance.new("UIListLayout")
 settingsLayout.Padding = UDim.new(0, 7)
 settingsLayout.Parent = settingsList
 
-local function addSettingRow(labelText, getter, setter)
+function addSettingRow(labelText, getter, setter)
     local row = Instance.new("TextButton")
     row.Size = UDim2.new(1, 0, 0, 41)
     row.BackgroundColor3 = COLOR_MEDIUM_GRAY
@@ -6708,7 +7061,7 @@ local function addSettingRow(labelText, getter, setter)
     boxCorner.CornerRadius = UDim.new(0, 4)
     boxCorner.Parent = box
 
-    local function refresh()
+    function refresh()
         local enabled = getter()
         box.BackgroundColor3 = enabled and Color3.fromRGB(135, 210, 242) or Color3.fromRGB(40, 40, 40)
         box.TextColor3 = COLOR_BLACK
@@ -7444,7 +7797,7 @@ local usefulThingCorner = Instance.new("UICorner")
 usefulThingCorner.CornerRadius = UDim.new(0, 5)
 usefulThingCorner.Parent = usefulThingButton
 
-local function refreshUsefulThingButton()
+function refreshUsefulThingButton()
     usefulThingButton.Text =
         "一个可能有用的东西: "
         .. (usefulThingEnabled and "ON" or "OFF")
@@ -7564,10 +7917,10 @@ godmodeHint.TextSize = 11
 godmodeHint.TextWrapped = true
 godmodeHint.TextXAlignment = Enum.TextXAlignment.Left
 godmodeHint.TextYAlignment = Enum.TextYAlignment.Center
-godmodeHint.Text = "启用这个功能会让你无法移动 需要你使用领域类技能（或别的让你取消固定的技能（如veil））才能让你在启用godmode时自由移动"
+godmodeHint.Text = "启用这个功能会让你无法移动 需要你使用领域类技能（或别的让你取消固定的技能）（我把所有能取消固定的技能列在了说明书中）才能让你在启用godmode时自由移动"
 godmodeHint.Parent = autoFrame
 
-local function refreshGodmodeButton()
+function refreshGodmodeButton()
     godmodeButton.Text =
         "Godmode: " .. (godmodeEnabled and "ON" or "OFF")
 
@@ -7650,7 +8003,7 @@ forceOtherPvpHint.Text =
     "只有可强制选中并强制造成伤害的技能（如tendril类技能）才能攻击他人"
 forceOtherPvpHint.Parent = autoFrame
 
-local function refreshForceOtherPvpButton()
+function refreshForceOtherPvpButton()
     forceOtherPvpButton.Text =
         "强制可攻击其他所有人（需要启用pvp）: "
         .. (forceOtherPvpEnabled and "ON" or "OFF")
@@ -7778,7 +8131,7 @@ local statNodeBundleCorner = Instance.new("UICorner")
 statNodeBundleCorner.CornerRadius = UDim.new(0, 5)
 statNodeBundleCorner.Parent = statNodeBundleButton
 
-local function refreshStatToggleButtons()
+function refreshStatToggleButtons()
     chantingButton.Text = "Chanting: " .. (chantingEnabled and "ON" or "OFF")
     chantingButton.BackgroundColor3 = chantingEnabled and COLOR_GREEN or COLOR_BTN_BG
     statNodeBundleButton.Text = "statnode全家桶: " .. (statNodeBundleEnabled and "ON" or "OFF")
@@ -7843,7 +8196,7 @@ end)
     --------------------------------------------------
     local skillTypeChangeBusy = false
 
-    local function setAllSkillsType(typeValue)
+    function setAllSkillsType(typeValue)
         if skillTypeChangeBusy then
             return false, 0, 0
         end
@@ -7913,7 +8266,7 @@ end)
     --------------------------------------------------
     -- 按钮反馈函数
     --------------------------------------------------
-    local function runSkillTypeChange(button, targetType, normalText, normalColor)
+    function runSkillTypeChange(button, targetType, normalText, normalColor)
         if skillTypeChangeBusy or not button.Active then
             return
         end
@@ -8305,7 +8658,7 @@ AutoWeaponButton.Parent = weaponsPage
 -- 按钮点击逻辑
 local autoWeaponLoopRunning = false
 
-local function refreshAutoWeaponButton()
+function refreshAutoWeaponButton()
     AutoWeaponButton.Text =
         "四倍伤害: " ..
         (AutoWeaponEnabled and "开" or "关")
@@ -8316,7 +8669,7 @@ local function refreshAutoWeaponButton()
         or Color3.fromRGB(50, 50, 50)
 end
 
-local function startAutoWeaponLoop()
+function startAutoWeaponLoop()
     -- 防止重复点击或加载设置时创建多个循环
     if autoWeaponLoopRunning then
         return
@@ -8372,7 +8725,7 @@ renameToggleBtn.BorderSizePixel = 0
 renameToggleBtn.ZIndex = 10 -- 确保在顶层
 renameToggleBtn.Parent = weaponsPage -- ✅ 修复此处为小写
 
-local function refreshRenameToggleButton()
+function refreshRenameToggleButton()
     if renameModeEnabled then
         renameToggleBtn.BackgroundColor3 = COLOR_GREEN
         renameToggleBtn.Text =
@@ -8500,7 +8853,7 @@ local SEC_REWARD_MILESTONES = {
 local freeRewardUsed = false
 local freeRewardBusy = false
 
-local function claimFreeRewardsOnce()
+function claimFreeRewardsOnce()
     if freeRewardUsed
         or freeRewardBusy
         or not freeRewardButton.Active
@@ -8869,7 +9222,7 @@ storylineTip.Parent = storylinePage
     selectionBox.ZIndex = 50
     selectionBox.Parent = screenGui
 
-local function setTab(tabName)
+function setTab(tabName)
     currentTab = tabName
 
     local onColor = COLOR_GREEN
@@ -8922,7 +9275,7 @@ end)
 
     setTab("Skills")
 
-local function handleInventoryAddAll()
+function handleInventoryAddAll()
     if not inventoryAddAllBtn.Active then
         return
     end
@@ -9083,6 +9436,10 @@ StorylineScrollFrame = storylineScrollFrame,
 StorylineLayout = storylineLayout,
 SettingsButton = settingsButton,
 SettingsFrame = settingsFrame,
+ManualButton = manualButton,
+ManualFrame = manualFrame,
+ManualScrollFrame = manualScrollFrame,
+ManualText = manualText,
 AutoWeaponButton = AutoWeaponButton,
 RenameToggleButton = renameToggleBtn,
 InventoryAddAllButton = inventoryAddAllBtn,
@@ -9090,7 +9447,7 @@ FreeRewardButton = freeRewardButton,
     }
 end
 
-local function setupUIHideHotkey(ui)
+function setupUIHideHotkey(ui)
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if input.UserInputType ~= Enum.UserInputType.Keyboard then
             return
@@ -9133,7 +9490,7 @@ local function setupUIHideHotkey(ui)
     end)
 end
 
-local function showEquipContextMenu(skillData)
+function showEquipContextMenu(skillData)
     if not uiRefs or not uiRefs.ScreenGui then return end
 
     local old = uiRefs.ScreenGui:FindFirstChild("EquipContextMenu")
@@ -9184,7 +9541,7 @@ local camera = workspace.CurrentCamera
     title.ZIndex = 201
     title.Parent = menu
 
-local function createEquipSection(
+function createEquipSection(
     xOffset,
     yOffset,
     sectionTitle,
