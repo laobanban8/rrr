@@ -7564,7 +7564,7 @@ godmodeHint.TextSize = 11
 godmodeHint.TextWrapped = true
 godmodeHint.TextXAlignment = Enum.TextXAlignment.Left
 godmodeHint.TextYAlignment = Enum.TextYAlignment.Center
-godmodeHint.Text = "启用这个功能会让你无法移动 需要你使用领域类技能（或别的让你取消固定的技能）才能让你在启用godmode时自由移动"
+godmodeHint.Text = "启用这个功能会让你无法移动 需要你使用领域类技能（或别的让你取消固定的技能（如veil））才能让你在启用godmode时自由移动"
 godmodeHint.Parent = autoFrame
 
 local function refreshGodmodeButton()
