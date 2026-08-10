@@ -1834,6 +1834,11 @@ local chantingEnabled = false
 local statNodeBundleEnabled = false
 local godmodeEnabled = false
 local refreshToggleSettings = function() end
+
+-- 设置窗口尚未创建时保持为空函数；
+-- createSkillUI() 创建设置行后会重新赋值。
+local refreshSettingsPanelRows = function() end
+
 local installAutoExecute
 
 
@@ -4005,7 +4010,7 @@ function loadToggleSettings()
     renameModeEnabled = data.renameMode == true
 	hideHotkeyEnabled = data.hideHotkeyEnabled ~= false
 if type(data.hideHotkeyName) == "string"
-    and Enum.KeyCode[hideHotkeyName]
+    and Enum.KeyCode[data.hideHotkeyName]
 then
     hideHotkeyName = data.hideHotkeyName
 end
@@ -4040,6 +4045,9 @@ hideHotkeyName = hideHotkeyName,
     then
         pcall(delfile, PANEL_SETTINGS_FILE)
     end
+    -- 功能可能由设置窗口以外的按钮切换，
+    -- 保存完成后同步刷新设置窗口的全部显示。
+    refreshSettingsPanelRows()
 end
 
 -- ========== 插入位置说明 ==========
@@ -7023,6 +7031,38 @@ local settingsLayout = Instance.new("UIListLayout")
 settingsLayout.Padding = UDim.new(0, 7)
 settingsLayout.Parent = settingsList
 
+--------------------------------------------------
+-- 设置窗口统一刷新
+--------------------------------------------------
+local settingRowRefreshers = {}
+
+refreshSettingsPanelRows = function()
+    for index = #settingRowRefreshers, 1, -1 do
+        local refreshRow = settingRowRefreshers[index]
+
+        if type(refreshRow) == "function" then
+            local ok, err = pcall(refreshRow)
+
+            if not ok then
+                warn(
+                    "[Settings] 刷新设置行失败:",
+                    err
+                )
+
+                table.remove(
+                    settingRowRefreshers,
+                    index
+                )
+            end
+        else
+            table.remove(
+                settingRowRefreshers,
+                index
+            )
+        end
+    end
+end
+
 function addSettingRow(labelText, getter, setter)
     local row = Instance.new("TextButton")
     row.Size = UDim2.new(1, 0, 0, 41)
@@ -7069,10 +7109,30 @@ function addSettingRow(labelText, getter, setter)
     end
 
     row.MouseButton1Click:Connect(function()
-        setter(not getter())
-        refresh()
+        local targetState = not (getter() == true)
+
+        local ok, err = pcall(function()
+            setter(targetState)
+        end)
+
+        if not ok then
+            warn(
+                "[Settings] 切换失败:",
+                labelText,
+                err
+            )
+        end
+
+        -- refreshToggleSettings() 会保存并统一刷新所有行。
         refreshToggleSettings()
     end)
+
+    -- 保存刷新函数，使其他按钮修改状态后，
+    -- 设置窗口能够立即同步。
+    table.insert(
+        settingRowRefreshers,
+        refresh
+    )
 
     refresh()
     return refresh
@@ -7159,11 +7219,22 @@ end)
 
 settingsButton.MouseButton1Click:Connect(function()
     settingsFrame.Visible = not settingsFrame.Visible
+
+    if settingsFrame.Visible then
+        refreshSettingsPanelRows()
+
+        if hotkeyBox and hotkeyBox.Parent then
+            hotkeyBox.Text = hideHotkeyName
+        end
+    end
 end)
 
 closeSettings.MouseButton1Click:Connect(function()
     settingsFrame.Visible = false
 end)
+
+-- 确保设置文件恢复后的状态正确显示。
+refreshSettingsPanelRows()
 
 --------------------------------------------------
 -- 设置窗口拖动
